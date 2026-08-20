@@ -1,0 +1,24 @@
+|----------------------------------------------------------------------------------------------------------------------------|
+| 2026-08-19 19:09:47                                                                                                        |
+|----------------------------------------------------------------------------------------------------------------------------|
+| pKaLearn                                                                                                              |
+| Jerome Genzling, Ziling Luo, Benjamin Weiser, Nic Moitessier                                                               |
+| Department of Chemistry, McGill University, Montreal, QC, Canada                                                           |
+|----------------------------------------------------------------------------------------------------------------------------|
+| Parameters used:                                                                                                           |
+| --mode (train, hyperopt, test, infer or pH):                       test                                                    |
+| --verbose (level of output):                                       0                                                       |
+| --print_models (print model while training):                       True                                                    |
+| --data_path (path to the data folder):                             ../Datasets/                                            |
+| --input (input file name):                                         df_label.csv                                            |
+| --model_dir (directory where model is):                            ../Model/                                               |
+| --model_name (model file name):                                    train_AAc-1_best.pth                                    |
+| --output (output file name):                                       output/                                                 |
+| --infer_pickled (path to the pickled inference set):               ..\Datasets\pickled_data\infer_pickled.pkl              |
+|----------------------------------------------------------------------------------------------------------------------------|
+| Reading the files, preparing the features and computing pKa                                                                |
+|----------------------------------------------------------------------------------------------------------------------------|
+| mol #  | SMILES                                                                            | center        |      pKa      |
+|        |                                                                                   |  obs. | pred. |  obs. | pred. |
+|----------------------------------------------------------------------------------------------------------------------------|
+|      1 | original SMILES: Br/C=C/C(=O)O mol                                                                ----------------|

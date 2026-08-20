@@ -1,0 +1,205 @@
+{
+  "model": "xgboost",
+  "target_column": "pka_value",
+  "metrics_note": "train_metricsは5foldの学習指標平均、test_metricsは各foldの検証指標平均です。標準偏差とfold別結果はcross_validationにあります。",
+  "feature_count": 14,
+  "features": [
+    "MW",
+    "logP",
+    "TPSA",
+    "HBA",
+    "HBD",
+    "rotatable_bonds",
+    "aromatic_rings",
+    "FractionCSP3",
+    "formal_charge",
+    "acid_type",
+    "acid_group_count",
+    "local_heteroatom_count",
+    "nearest_heteroatom_distance",
+    "local_conjugation"
+  ],
+  "data": {
+    "input_file": "C:\\Users\\kyoma\\Desktop\\laboratory\\ml\\predict_pka\\src\\pka_prediction\\df_features_v2.csv",
+    "rows_read": 1025,
+    "rows_used": 1017,
+    "rows_excluded": 8,
+    "rows_with_invalid_smiles": 0,
+    "all_missing_features_filled_with_zero": []
+  },
+  "cross_validation": {
+    "method": "KFold",
+    "n_splits": 5,
+    "shuffle": true,
+    "random_state": 42,
+    "train_metrics_summary": {
+      "mean": {
+        "r2": 0.9312193994497849,
+        "rmse": 0.6479152507122902,
+        "mae": 0.4476697266929559
+      },
+      "std": {
+        "r2": 0.005240096969624359,
+        "rmse": 0.020390611610661875,
+        "mae": 0.01173792592294781
+      }
+    },
+    "validation_metrics_summary": {
+      "mean": {
+        "r2": 0.5437999308014486,
+        "rmse": 1.6534305505080575,
+        "mae": 1.0173549511816453
+      },
+      "std": {
+        "r2": 0.06861968896056572,
+        "rmse": 0.08646346079037219,
+        "mae": 0.03291066605634598
+      }
+    },
+    "fold_metrics": [
+      {
+        "fold": 1,
+        "train_rows": 813,
+        "validation_rows": 204,
+        "train_metrics": {
+          "r2": 0.9318663464924817,
+          "rmse": 0.6346181019686978,
+          "mae": 0.43767157522630196
+        },
+        "validation_metrics": {
+          "r2": 0.553160698522697,
+          "rmse": 1.747575838599589,
+          "mae": 1.0551080843443297
+        }
+      },
+      {
+        "fold": 2,
+        "train_rows": 813,
+        "validation_rows": 204,
+        "train_metrics": {
+          "r2": 0.928577152059193,
+          "rmse": 0.6620266247950649,
+          "mae": 0.46134237970969744
+        },
+        "validation_metrics": {
+          "r2": 0.5900822956182692,
+          "rmse": 1.5744850737340201,
+          "mae": 1.0140082752961603
+        }
+      },
+      {
+        "fold": 3,
+        "train_rows": 814,
+        "validation_rows": 203,
+        "train_metrics": {
+          "r2": 0.923250880417324,
+          "rmse": 0.6771194882662236,
+          "mae": 0.46207707707789447
+        },
+        "validation_metrics": {
+          "r2": 0.6218233297349006,
+          "rmse": 1.5859127830329505,
+          "mae": 1.0547624449136088
+        }
+      },
+      {
+        "fold": 4,
+        "train_rows": 814,
+        "validation_rows": 203,
+        "train_metrics": {
+          "r2": 0.9333067516942285,
+          "rmse": 0.6470392888402468,
+          "mae": 0.4425620958950298
+        },
+        "validation_metrics": {
+          "r2": 0.4208747507601782,
+          "rmse": 1.7700237408443,
+          "mae": 0.9807003022190404
+        }
+      },
+      {
+        "fold": 5,
+        "train_rows": 814,
+        "validation_rows": 203,
+        "train_metrics": {
+          "r2": 0.9390958665856975,
+          "rmse": 0.6187727496912175,
+          "mae": 0.4346955055558559
+        },
+        "validation_metrics": {
+          "r2": 0.5330585793711979,
+          "rmse": 1.5891553163294276,
+          "mae": 0.9821956491350877
+        }
+      }
+    ]
+  },
+  "train_metrics": {
+    "r2": 0.9312193994497849,
+    "rmse": 0.6479152507122902,
+    "mae": 0.4476697266929559
+  },
+  "test_metrics": {
+    "r2": 0.5437999308014486,
+    "rmse": 1.6534305505080575,
+    "mae": 1.0173549511816453
+  },
+  "train_metrics_std": {
+    "r2": 0.005240096969624359,
+    "rmse": 0.020390611610661875,
+    "mae": 0.01173792592294781
+  },
+  "test_metrics_std": {
+    "r2": 0.06861968896056572,
+    "rmse": 0.08646346079037219,
+    "mae": 0.03291066605634598
+  },
+  "saved_model_training": "full_dataset_after_cross_validation",
+  "model_parameters": {
+    "objective": "reg:squarederror",
+    "base_score": null,
+    "booster": null,
+    "callbacks": null,
+    "colsample_bylevel": null,
+    "colsample_bynode": null,
+    "colsample_bytree": 0.8,
+    "device": null,
+    "early_stopping_rounds": null,
+    "enable_categorical": false,
+    "eval_metric": null,
+    "feature_types": null,
+    "feature_weights": null,
+    "gamma": null,
+    "grow_policy": null,
+    "importance_type": null,
+    "interaction_constraints": null,
+    "learning_rate": 0.05,
+    "max_bin": null,
+    "max_cat_threshold": null,
+    "max_cat_to_onehot": null,
+    "max_delta_step": null,
+    "max_depth": 4,
+    "max_leaves": null,
+    "min_child_weight": 3,
+    "missing": NaN,
+    "monotone_constraints": null,
+    "multi_strategy": null,
+    "n_estimators": 500,
+    "n_jobs": -1,
+    "num_parallel_tree": null,
+    "random_state": 42,
+    "reg_alpha": 0.0,
+    "reg_lambda": 1.0,
+    "sampling_method": null,
+    "scale_pos_weight": null,
+    "subsample": 0.8,
+    "tree_method": null,
+    "validate_parameters": null,
+    "verbosity": null
+  },
+  "package_versions": {
+    "model_package": "3.2.0",
+    "scikit_learn": "1.8.0",
+    "pandas": "3.0.2"
+  }
+}

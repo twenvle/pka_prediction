@@ -1,0 +1,324 @@
+{
+  "model": "ridge",
+  "target_column": "pka_value",
+  "metrics_note": "train_metricsは5foldの学習指標平均、test_metricsは各foldの検証指標平均です。標準偏差とfold別結果はcross_validationにあります。",
+  "feature_count": 14,
+  "features": [
+    "MW",
+    "logP",
+    "TPSA",
+    "HBA",
+    "HBD",
+    "rotatable_bonds",
+    "aromatic_rings",
+    "FractionCSP3",
+    "formal_charge",
+    "acid_type",
+    "acid_group_count",
+    "local_heteroatom_count",
+    "nearest_heteroatom_distance",
+    "local_conjugation"
+  ],
+  "data": {
+    "input_file": "C:\\Users\\kyoma\\Desktop\\laboratory\\ml\\predict_pka\\src\\pka_prediction\\df_features_v2.csv",
+    "rows_read": 1025,
+    "rows_used": 1017,
+    "rows_excluded": 8,
+    "rows_with_invalid_smiles": 0,
+    "all_missing_features_filled_with_zero": []
+  },
+  "cross_validation": {
+    "method": "KFold",
+    "n_splits": 5,
+    "shuffle": true,
+    "random_state": 42,
+    "train_metrics_summary": {
+      "mean": {
+        "r2": 0.41112322711983074,
+        "rmse": 1.8976336867448063,
+        "mae": 1.3300835433253109
+      },
+      "std": {
+        "r2": 0.008206651197788415,
+        "rmse": 0.01752354924152199,
+        "mae": 0.016440040803663236
+      }
+    },
+    "validation_metrics_summary": {
+      "mean": {
+        "r2": 0.338694655294049,
+        "rmse": 1.9960968186270558,
+        "mae": 1.3678454216193632
+      },
+      "std": {
+        "r2": 0.07007878406748656,
+        "rmse": 0.10301963125788074,
+        "mae": 0.06805047603432558
+      }
+    },
+    "fold_metrics": [
+      {
+        "fold": 1,
+        "train_rows": 813,
+        "validation_rows": 204,
+        "train_metrics": {
+          "r2": 0.40579883383048876,
+          "rmse": 1.874124192814577,
+          "mae": 1.3164867728563474
+        },
+        "validation_metrics": {
+          "r2": 0.3331117359104788,
+          "rmse": 2.1349459617130226,
+          "mae": 1.4573896366964174
+        }
+      },
+      {
+        "fold": 2,
+        "train_rows": 813,
+        "validation_rows": 204,
+        "train_metrics": {
+          "r2": 0.40331160464966453,
+          "rmse": 1.913509708106145,
+          "mae": 1.3114715025409038
+        },
+        "validation_metrics": {
+          "r2": 0.40336748648963205,
+          "rmse": 1.899519114574698,
+          "mae": 1.415411266267452
+        }
+      },
+      {
+        "fold": 3,
+        "train_rows": 814,
+        "validation_rows": 203,
+        "train_metrics": {
+          "r2": 0.4068327359910452,
+          "rmse": 1.882422910271622,
+          "mae": 1.3234414040200355
+        },
+        "validation_metrics": {
+          "r2": 0.3895323227667291,
+          "rmse": 2.014945342212603,
+          "mae": 1.381466964675766
+        }
+      },
+      {
+        "fold": 4,
+        "train_rows": 814,
+        "validation_rows": 203,
+        "train_metrics": {
+          "r2": 0.42604635675456115,
+          "rmse": 1.8981394942835983,
+          "mae": 1.346247248795266
+        },
+        "validation_metrics": {
+          "r2": 0.20719678494110605,
+          "rmse": 2.0709782734566398,
+          "mae": 1.31824884545807
+        }
+      },
+      {
+        "fold": 5,
+        "train_rows": 814,
+        "validation_rows": 203,
+        "train_metrics": {
+          "r2": 0.41362660437339405,
+          "rmse": 1.919972128248089,
+          "mae": 1.3527707884140014
+        },
+        "validation_metrics": {
+          "r2": 0.3602649463622991,
+          "rmse": 1.8600954011783155,
+          "mae": 1.2667103949991099
+        }
+      }
+    ]
+  },
+  "train_metrics": {
+    "r2": 0.41112322711983074,
+    "rmse": 1.8976336867448063,
+    "mae": 1.3300835433253109
+  },
+  "test_metrics": {
+    "r2": 0.338694655294049,
+    "rmse": 1.9960968186270558,
+    "mae": 1.3678454216193632
+  },
+  "train_metrics_std": {
+    "r2": 0.008206651197788415,
+    "rmse": 0.01752354924152199,
+    "mae": 0.016440040803663236
+  },
+  "test_metrics_std": {
+    "r2": 0.07007878406748656,
+    "rmse": 0.10301963125788074,
+    "mae": 0.06805047603432558
+  },
+  "saved_model_training": "full_dataset_after_cross_validation",
+  "model_parameters": {
+    "alpha": 1.0,
+    "copy_X": true,
+    "fit_intercept": true,
+    "max_iter": null,
+    "positive": false,
+    "random_state": null,
+    "solver": "auto",
+    "tol": 0.0001
+  },
+  "package_versions": {
+    "model_package": "1.8.0",
+    "scikit_learn": "1.8.0",
+    "pandas": "3.0.2"
+  },
+  "ridge_feature_contributions": {
+    "interpretation": "standardized_coefficientは他の特徴量を一定としたとき、特徴量が学習データ内で1標準偏差増加した場合の予測値の変化量です。絶対値が大きいほどRidgeモデル内での影響が大きく、正負は予測値を上げる・下げる方向を示します。因果関係を示す値ではありません。",
+    "standardized_intercept": 4.577165793098522,
+    "original_scale_intercept": 4.345537695304541,
+    "standardized_coefficients_by_feature": {
+      "MW": -0.6928387992490176,
+      "logP": -0.42524223053403604,
+      "TPSA": -0.45176828989705586,
+      "HBA": -0.01286472776358382,
+      "HBD": 1.1731910818834221,
+      "rotatable_bonds": 0.41655416437245707,
+      "aromatic_rings": 1.341858050947753,
+      "FractionCSP3": 1.3255256173585948,
+      "formal_charge": -0.03635755437971566,
+      "acid_type": -0.3919961212399935,
+      "acid_group_count": -0.8167873819214866,
+      "local_heteroatom_count": 0.4126883152135766,
+      "nearest_heteroatom_distance": -0.45671134615705483,
+      "local_conjugation": 0.20233793992572743
+    },
+    "original_scale_coefficients_by_feature": {
+      "MW": -0.011377931950157492,
+      "logP": -0.3358427731705843,
+      "TPSA": -0.014010460312743162,
+      "HBA": -0.009262585999968327,
+      "HBD": 1.1255673126120016,
+      "rotatable_bonds": 0.20077682744669012,
+      "aromatic_rings": 1.9707124518540655,
+      "FractionCSP3": 4.392846035569378,
+      "formal_charge": -0.8206681830282648,
+      "acid_type": -1.456089042628265,
+      "acid_group_count": -1.6574781776149674,
+      "local_heteroatom_count": 0.5518448195294035,
+      "nearest_heteroatom_distance": -0.44001544879592563,
+      "local_conjugation": 0.39906383780443366
+    },
+    "ranking_by_absolute_standardized_coefficient": [
+      {
+        "feature": "aromatic_rings",
+        "standardized_coefficient": 1.341858050947753,
+        "absolute_standardized_coefficient": 1.341858050947753,
+        "original_scale_coefficient": 1.9707124518540655,
+        "direction": "positive",
+        "absolute_contribution_rank": 1
+      },
+      {
+        "feature": "FractionCSP3",
+        "standardized_coefficient": 1.3255256173585948,
+        "absolute_standardized_coefficient": 1.3255256173585948,
+        "original_scale_coefficient": 4.392846035569378,
+        "direction": "positive",
+        "absolute_contribution_rank": 2
+      },
+      {
+        "feature": "HBD",
+        "standardized_coefficient": 1.1731910818834221,
+        "absolute_standardized_coefficient": 1.1731910818834221,
+        "original_scale_coefficient": 1.1255673126120016,
+        "direction": "positive",
+        "absolute_contribution_rank": 3
+      },
+      {
+        "feature": "acid_group_count",
+        "standardized_coefficient": -0.8167873819214866,
+        "absolute_standardized_coefficient": 0.8167873819214866,
+        "original_scale_coefficient": -1.6574781776149674,
+        "direction": "negative",
+        "absolute_contribution_rank": 4
+      },
+      {
+        "feature": "MW",
+        "standardized_coefficient": -0.6928387992490176,
+        "absolute_standardized_coefficient": 0.6928387992490176,
+        "original_scale_coefficient": -0.011377931950157492,
+        "direction": "negative",
+        "absolute_contribution_rank": 5
+      },
+      {
+        "feature": "nearest_heteroatom_distance",
+        "standardized_coefficient": -0.45671134615705483,
+        "absolute_standardized_coefficient": 0.45671134615705483,
+        "original_scale_coefficient": -0.44001544879592563,
+        "direction": "negative",
+        "absolute_contribution_rank": 6
+      },
+      {
+        "feature": "TPSA",
+        "standardized_coefficient": -0.45176828989705586,
+        "absolute_standardized_coefficient": 0.45176828989705586,
+        "original_scale_coefficient": -0.014010460312743162,
+        "direction": "negative",
+        "absolute_contribution_rank": 7
+      },
+      {
+        "feature": "logP",
+        "standardized_coefficient": -0.42524223053403604,
+        "absolute_standardized_coefficient": 0.42524223053403604,
+        "original_scale_coefficient": -0.3358427731705843,
+        "direction": "negative",
+        "absolute_contribution_rank": 8
+      },
+      {
+        "feature": "rotatable_bonds",
+        "standardized_coefficient": 0.41655416437245707,
+        "absolute_standardized_coefficient": 0.41655416437245707,
+        "original_scale_coefficient": 0.20077682744669012,
+        "direction": "positive",
+        "absolute_contribution_rank": 9
+      },
+      {
+        "feature": "local_heteroatom_count",
+        "standardized_coefficient": 0.4126883152135766,
+        "absolute_standardized_coefficient": 0.4126883152135766,
+        "original_scale_coefficient": 0.5518448195294035,
+        "direction": "positive",
+        "absolute_contribution_rank": 10
+      },
+      {
+        "feature": "acid_type",
+        "standardized_coefficient": -0.3919961212399935,
+        "absolute_standardized_coefficient": 0.3919961212399935,
+        "original_scale_coefficient": -1.456089042628265,
+        "direction": "negative",
+        "absolute_contribution_rank": 11
+      },
+      {
+        "feature": "local_conjugation",
+        "standardized_coefficient": 0.20233793992572743,
+        "absolute_standardized_coefficient": 0.20233793992572743,
+        "original_scale_coefficient": 0.39906383780443366,
+        "direction": "positive",
+        "absolute_contribution_rank": 12
+      },
+      {
+        "feature": "formal_charge",
+        "standardized_coefficient": -0.03635755437971566,
+        "absolute_standardized_coefficient": 0.03635755437971566,
+        "original_scale_coefficient": -0.8206681830282648,
+        "direction": "negative",
+        "absolute_contribution_rank": 13
+      },
+      {
+        "feature": "HBA",
+        "standardized_coefficient": -0.01286472776358382,
+        "absolute_standardized_coefficient": 0.01286472776358382,
+        "original_scale_coefficient": -0.009262585999968327,
+        "direction": "negative",
+        "absolute_contribution_rank": 14
+      }
+    ]
+  }
+}
