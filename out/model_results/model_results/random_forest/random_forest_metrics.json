@@ -1,0 +1,182 @@
+{
+  "model": "random_forest",
+  "target_column": "pka_value",
+  "metrics_note": "train_metricsは5foldの学習指標平均、test_metricsは各foldの検証指標平均です。標準偏差とfold別結果はcross_validationにあります。",
+  "feature_count": 13,
+  "features": [
+    "MW",
+    "logP",
+    "HBA",
+    "HBD",
+    "rotatable_bonds",
+    "aromatic_rings",
+    "acid_type",
+    "nearest_heteroatom_distance",
+    "h_nbo_charge",
+    "total_nbo_charge",
+    "dipole_moment_debye",
+    "homo_ev",
+    "lumo_ev"
+  ],
+  "data": {
+    "input_file": "C:\\Users\\kyoma\\Desktop\\laboratory\\ml\\predict_pka\\src\\pka_prediction\\df_features_cooh.csv",
+    "rows_read": 269,
+    "rows_used": 268,
+    "rows_excluded": 1,
+    "rows_with_invalid_smiles": 0,
+    "all_missing_features_filled_with_zero": []
+  },
+  "cross_validation": {
+    "method": "KFold",
+    "n_splits": 5,
+    "shuffle": true,
+    "random_state": 42,
+    "train_metrics_summary": {
+      "mean": {
+        "r2": 0.6807824851951275,
+        "rmse": 1.4486747010973045,
+        "mae": 0.7461064781859392
+      },
+      "std": {
+        "r2": 0.01697273008389662,
+        "rmse": 0.07106758776341923,
+        "mae": 0.038552926994494446
+      }
+    },
+    "validation_metrics_summary": {
+      "mean": {
+        "r2": 0.5327646051312421,
+        "rmse": 1.7210227360941477,
+        "mae": 0.9608223380905938
+      },
+      "std": {
+        "r2": 0.11628490697045485,
+        "rmse": 0.4802504837361277,
+        "mae": 0.14868628685828975
+      }
+    },
+    "fold_metrics": [
+      {
+        "fold": 1,
+        "train_rows": 214,
+        "validation_rows": 54,
+        "train_metrics": {
+          "r2": 0.667649201524444,
+          "rmse": 1.4435138125166478,
+          "mae": 0.7303366917994059
+        },
+        "validation_metrics": {
+          "r2": 0.5361684301051604,
+          "rmse": 1.9163446785937521,
+          "mae": 1.0071093073140023
+        }
+      },
+      {
+        "fold": 2,
+        "train_rows": 214,
+        "validation_rows": 54,
+        "train_metrics": {
+          "r2": 0.684181919863143,
+          "rmse": 1.514051943631746,
+          "mae": 0.7639903706334155
+        },
+        "validation_metrics": {
+          "r2": 0.5411021874018613,
+          "rmse": 1.3370855768207175,
+          "mae": 0.9416780652205324
+        }
+      },
+      {
+        "fold": 3,
+        "train_rows": 214,
+        "validation_rows": 54,
+        "train_metrics": {
+          "r2": 0.6706298245548086,
+          "rmse": 1.5379133267142875,
+          "mae": 0.8113587566216982
+        },
+        "validation_metrics": {
+          "r2": 0.7369344110051249,
+          "rmse": 1.0637840769655502,
+          "mae": 0.7745195453849695
+        }
+      },
+      {
+        "fold": 4,
+        "train_rows": 215,
+        "validation_rows": 53,
+        "train_metrics": {
+          "r2": 0.7125834089854236,
+          "rmse": 1.4041156035374769,
+          "mae": 0.7253875909002107
+        },
+        "validation_metrics": {
+          "r2": 0.38920239077690966,
+          "rmse": 1.8456652565773828,
+          "mae": 0.8662553591753002
+        }
+      },
+      {
+        "fold": 5,
+        "train_rows": 215,
+        "validation_rows": 53,
+        "train_metrics": {
+          "r2": 0.6688680710478185,
+          "rmse": 1.3437788190863644,
+          "mae": 0.699458980974966
+        },
+        "validation_metrics": {
+          "r2": 0.4604156063671542,
+          "rmse": 2.442234091513336,
+          "mae": 1.2145494133581647
+        }
+      }
+    ]
+  },
+  "train_metrics": {
+    "r2": 0.6807824851951275,
+    "rmse": 1.4486747010973045,
+    "mae": 0.7461064781859392
+  },
+  "test_metrics": {
+    "r2": 0.5327646051312421,
+    "rmse": 1.7210227360941477,
+    "mae": 0.9608223380905938
+  },
+  "train_metrics_std": {
+    "r2": 0.01697273008389662,
+    "rmse": 0.07106758776341923,
+    "mae": 0.038552926994494446
+  },
+  "test_metrics_std": {
+    "r2": 0.11628490697045485,
+    "rmse": 0.4802504837361277,
+    "mae": 0.14868628685828975
+  },
+  "saved_model_training": "full_dataset_after_cross_validation",
+  "model_parameters": {
+    "bootstrap": true,
+    "ccp_alpha": 0.0,
+    "criterion": "squared_error",
+    "max_depth": 5,
+    "max_features": 0.5,
+    "max_leaf_nodes": null,
+    "max_samples": 0.8,
+    "min_impurity_decrease": 0.0,
+    "min_samples_leaf": 5,
+    "min_samples_split": 10,
+    "min_weight_fraction_leaf": 0.0,
+    "monotonic_cst": null,
+    "n_estimators": 500,
+    "n_jobs": -1,
+    "oob_score": false,
+    "random_state": 42,
+    "verbose": 0,
+    "warm_start": false
+  },
+  "package_versions": {
+    "model_package": "1.9.0",
+    "scikit_learn": "1.9.0",
+    "pandas": "3.0.5"
+  }
+}

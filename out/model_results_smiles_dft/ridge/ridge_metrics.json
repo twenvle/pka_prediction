@@ -1,0 +1,502 @@
+{
+  "model": "ridge",
+  "target_column": "pka_value",
+  "metrics_note": "train_metricsは外側5foldの学習指標平均、test_metricsは外側foldの検証指標平均です。各外側foldの学習データ内だけでハイパーパラメータ探索を行っています。標準偏差とfold別結果はcross_validationにあります。",
+  "feature_count": 13,
+  "features": [
+    "MW",
+    "logP",
+    "HBA",
+    "HBD",
+    "rotatable_bonds",
+    "aromatic_rings",
+    "acid_type",
+    "nearest_heteroatom_distance",
+    "h_nbo_charge",
+    "total_nbo_charge",
+    "dipole_moment_debye",
+    "homo_ev",
+    "lumo_ev"
+  ],
+  "data": {
+    "input_file": "C:\\Users\\kyoma\\Desktop\\laboratory\\ml\\predict_pka\\src\\pka_prediction\\df_features_v6.csv",
+    "rows_read": 298,
+    "rows_used": 297,
+    "rows_excluded": 1,
+    "rows_with_invalid_smiles": 0,
+    "all_missing_features_filled_with_zero": []
+  },
+  "cross_validation": {
+    "method": "NestedKFold",
+    "n_splits": 5,
+    "inner_splits": 3,
+    "shuffle": true,
+    "random_state": 42,
+    "train_metrics_summary": {
+      "mean": {
+        "r2": 0.3917041562093385,
+        "rmse": 1.966032155977249,
+        "mae": 1.2865259736048316
+      },
+      "std": {
+        "r2": 0.04399018576625078,
+        "rmse": 0.10675488235577957,
+        "mae": 0.047291324013866286
+      }
+    },
+    "validation_metrics_summary": {
+      "mean": {
+        "r2": 0.31843484359523855,
+        "rmse": 2.0405047802900804,
+        "mae": 1.3375662675098081
+      },
+      "std": {
+        "r2": 0.16284234627277758,
+        "rmse": 0.41905001154822524,
+        "mae": 0.13736209945457675
+      }
+    },
+    "fold_metrics": [
+      {
+        "fold": 1,
+        "train_rows": 237,
+        "validation_rows": 60,
+        "train_metrics": {
+          "r2": 0.3695846637767779,
+          "rmse": 1.9254700420106703,
+          "mae": 1.236021062009506
+        },
+        "validation_metrics": {
+          "r2": 0.43631456495439747,
+          "rmse": 2.1604429539545746,
+          "mae": 1.444910331860727
+        },
+        "inner_cv_best_rmse": 2.0633589455795103,
+        "best_parameters": {
+          "model__alpha": 10.0
+        }
+      },
+      {
+        "fold": 2,
+        "train_rows": 237,
+        "validation_rows": 60,
+        "train_metrics": {
+          "r2": 0.3891482073831821,
+          "rmse": 2.075097585341957,
+          "mae": 1.3392884387880937
+        },
+        "validation_metrics": {
+          "r2": 0.30182294379043995,
+          "rmse": 1.6080309921285088,
+          "mae": 1.1929386586456123
+        },
+        "inner_cv_best_rmse": 2.254803573518337,
+        "best_parameters": {
+          "model__alpha": 30.0
+        }
+      },
+      {
+        "fold": 3,
+        "train_rows": 238,
+        "validation_rows": 59,
+        "train_metrics": {
+          "r2": 0.3655272331185022,
+          "rmse": 2.0838517289439586,
+          "mae": 1.34797210338064
+        },
+        "validation_metrics": {
+          "r2": 0.44361365885741466,
+          "rmse": 1.5462909766335504,
+          "mae": 1.165664805896084
+        },
+        "inner_cv_best_rmse": 2.320537493572262,
+        "best_parameters": {
+          "model__alpha": 30.0
+        }
+      },
+      {
+        "fold": 4,
+        "train_rows": 238,
+        "validation_rows": 59,
+        "train_metrics": {
+          "r2": 0.47713727388492544,
+          "rmse": 1.7947588995521544,
+          "mae": 1.2500364435992262
+        },
+        "validation_metrics": {
+          "r2": 0.008860068199663784,
+          "rmse": 2.675100403617517,
+          "mae": 1.514520855039501
+        },
+        "inner_cv_best_rmse": 1.90568505802204,
+        "best_parameters": {
+          "model__alpha": 30.0
+        }
+      },
+      {
+        "fold": 5,
+        "train_rows": 238,
+        "validation_rows": 59,
+        "train_metrics": {
+          "r2": 0.3571234028833049,
+          "rmse": 1.9509825240375036,
+          "mae": 1.2593118202466915
+        },
+        "validation_metrics": {
+          "r2": 0.4015629821742769,
+          "rmse": 2.2126585751162504,
+          "mae": 1.3697966861071158
+        },
+        "inner_cv_best_rmse": 2.0864204638393313,
+        "best_parameters": {
+          "model__alpha": 30.0
+        }
+      }
+    ]
+  },
+  "train_metrics": {
+    "r2": 0.3917041562093385,
+    "rmse": 1.966032155977249,
+    "mae": 1.2865259736048316
+  },
+  "test_metrics": {
+    "r2": 0.31843484359523855,
+    "rmse": 2.0405047802900804,
+    "mae": 1.3375662675098081
+  },
+  "train_metrics_std": {
+    "r2": 0.04399018576625078,
+    "rmse": 0.10675488235577957,
+    "mae": 0.047291324013866286
+  },
+  "test_metrics_std": {
+    "r2": 0.16284234627277758,
+    "rmse": 0.41905001154822524,
+    "mae": 0.13736209945457675
+  },
+  "hyperparameter_search": {
+    "strategy": "GridSearchCV",
+    "scoring": "neg_root_mean_squared_error",
+    "search_iterations": null,
+    "search_space": {
+      "model__alpha": [
+        0.0001,
+        0.0003,
+        0.001,
+        0.003,
+        0.01,
+        0.03,
+        0.1,
+        0.3,
+        1.0,
+        3.0,
+        10.0,
+        30.0,
+        100.0,
+        300.0,
+        1000.0,
+        3000.0,
+        10000.0
+      ]
+    },
+    "final_best_parameters": {
+      "model__alpha": 30.0
+    },
+    "final_inner_cv_best_rmse": 2.0310363718886646,
+    "final_candidate_results": [
+      {
+        "rank": 1,
+        "mean_cv_rmse": 2.0310363718886646,
+        "std_cv_rmse": 0.38663394457481837,
+        "parameters": {
+          "model__alpha": 30.0
+        }
+      },
+      {
+        "rank": 2,
+        "mean_cv_rmse": 2.033651048078782,
+        "std_cv_rmse": 0.3777394069413483,
+        "parameters": {
+          "model__alpha": 10.0
+        }
+      },
+      {
+        "rank": 3,
+        "mean_cv_rmse": 2.045859856538663,
+        "std_cv_rmse": 0.36820224802207707,
+        "parameters": {
+          "model__alpha": 3.0
+        }
+      },
+      {
+        "rank": 4,
+        "mean_cv_rmse": 2.052785901146011,
+        "std_cv_rmse": 0.3633812840419476,
+        "parameters": {
+          "model__alpha": 1.0
+        }
+      },
+      {
+        "rank": 5,
+        "mean_cv_rmse": 2.0558913511987678,
+        "std_cv_rmse": 0.3612674428335135,
+        "parameters": {
+          "model__alpha": 0.3
+        }
+      },
+      {
+        "rank": 6,
+        "mean_cv_rmse": 2.0568623625624247,
+        "std_cv_rmse": 0.36061063792892867,
+        "parameters": {
+          "model__alpha": 0.1
+        }
+      },
+      {
+        "rank": 7,
+        "mean_cv_rmse": 2.0572118905656396,
+        "std_cv_rmse": 0.3603746339576055,
+        "parameters": {
+          "model__alpha": 0.03
+        }
+      },
+      {
+        "rank": 8,
+        "mean_cv_rmse": 2.057312704930928,
+        "std_cv_rmse": 0.3603066030391986,
+        "parameters": {
+          "model__alpha": 0.01
+        }
+      },
+      {
+        "rank": 9,
+        "mean_cv_rmse": 2.0573480906391466,
+        "std_cv_rmse": 0.3602827284319405,
+        "parameters": {
+          "model__alpha": 0.003
+        }
+      },
+      {
+        "rank": 10,
+        "mean_cv_rmse": 2.05735821045924,
+        "std_cv_rmse": 0.3602759010217813,
+        "parameters": {
+          "model__alpha": 0.001
+        }
+      },
+      {
+        "rank": 11,
+        "mean_cv_rmse": 2.057361753407163,
+        "std_cv_rmse": 0.36027351078770803,
+        "parameters": {
+          "model__alpha": 0.0003
+        }
+      },
+      {
+        "rank": 12,
+        "mean_cv_rmse": 2.057362765774303,
+        "std_cv_rmse": 0.36027282780266684,
+        "parameters": {
+          "model__alpha": 0.0001
+        }
+      },
+      {
+        "rank": 13,
+        "mean_cv_rmse": 2.0740669157059446,
+        "std_cv_rmse": 0.3900488774058307,
+        "parameters": {
+          "model__alpha": 100.0
+        }
+      },
+      {
+        "rank": 14,
+        "mean_cv_rmse": 2.185035008792133,
+        "std_cv_rmse": 0.3839741476941915,
+        "parameters": {
+          "model__alpha": 300.0
+        }
+      },
+      {
+        "rank": 15,
+        "mean_cv_rmse": 2.3380668122001556,
+        "std_cv_rmse": 0.36912931390104525,
+        "parameters": {
+          "model__alpha": 1000.0
+        }
+      },
+      {
+        "rank": 16,
+        "mean_cv_rmse": 2.433886967629444,
+        "std_cv_rmse": 0.35762812897136254,
+        "parameters": {
+          "model__alpha": 3000.0
+        }
+      },
+      {
+        "rank": 17,
+        "mean_cv_rmse": 2.482448837883071,
+        "std_cv_rmse": 0.35139801022213,
+        "parameters": {
+          "model__alpha": 10000.0
+        }
+      }
+    ]
+  },
+  "saved_model_training": "full_dataset_after_nested_cross_validation_and_final_hyperparameter_search",
+  "model_parameters": {
+    "alpha": 30.0,
+    "copy_X": true,
+    "fit_intercept": true,
+    "max_iter": null,
+    "positive": false,
+    "random_state": null,
+    "solver": "auto",
+    "tol": 0.0001
+  },
+  "package_versions": {
+    "model_package": "1.9.0",
+    "scikit_learn": "1.9.0",
+    "pandas": "3.0.5"
+  },
+  "ridge_feature_contributions": {
+    "interpretation": "standardized_coefficientは他の特徴量を一定としたとき、特徴量が学習データ内で1標準偏差増加した場合の予測値の変化量です。絶対値が大きいほどRidgeモデル内での影響が大きく、正負は予測値を上げる・下げる方向を示します。因果関係を示す値ではありません。",
+    "standardized_intercept": 4.582106723050607,
+    "original_scale_intercept": 69.22086762779918,
+    "standardized_coefficients_by_feature": {
+      "MW": -0.20804695256383834,
+      "logP": -0.7394672463181068,
+      "HBA": -0.18150022916882727,
+      "HBD": 0.44467309762798046,
+      "rotatable_bonds": 0.38718547777778867,
+      "aromatic_rings": 0.2297430595865806,
+      "acid_type": -0.005753700067264726,
+      "nearest_heteroatom_distance": -0.6762388889332531,
+      "h_nbo_charge": -0.7637375851935982,
+      "total_nbo_charge": -0.11784209855149069,
+      "dipole_moment_debye": 0.2478149976651552,
+      "homo_ev": 0.44247832116282965,
+      "lumo_ev": 0.32875633196922105
+    },
+    "original_scale_coefficients_by_feature": {
+      "MW": -0.004915432046079285,
+      "logP": -0.615166046474959,
+      "HBA": -0.17939047136869735,
+      "HBD": 0.5454930425978806,
+      "rotatable_bonds": 0.22838145258951956,
+      "aromatic_rings": 0.3629965082055038,
+      "acid_type": -0.019383726452155376,
+      "nearest_heteroatom_distance": -0.7999489419306525,
+      "h_nbo_charge": -110.34001009206231,
+      "total_nbo_charge": -3.926272007047557,
+      "dipole_moment_debye": 0.1094768343066027,
+      "homo_ev": 0.5473335534839187,
+      "lumo_ev": 0.40674099564440874
+    },
+    "ranking_by_absolute_standardized_coefficient": [
+      {
+        "feature": "h_nbo_charge",
+        "standardized_coefficient": -0.7637375851935982,
+        "absolute_standardized_coefficient": 0.7637375851935982,
+        "original_scale_coefficient": -110.34001009206231,
+        "direction": "negative",
+        "absolute_contribution_rank": 1
+      },
+      {
+        "feature": "logP",
+        "standardized_coefficient": -0.7394672463181068,
+        "absolute_standardized_coefficient": 0.7394672463181068,
+        "original_scale_coefficient": -0.615166046474959,
+        "direction": "negative",
+        "absolute_contribution_rank": 2
+      },
+      {
+        "feature": "nearest_heteroatom_distance",
+        "standardized_coefficient": -0.6762388889332531,
+        "absolute_standardized_coefficient": 0.6762388889332531,
+        "original_scale_coefficient": -0.7999489419306525,
+        "direction": "negative",
+        "absolute_contribution_rank": 3
+      },
+      {
+        "feature": "HBD",
+        "standardized_coefficient": 0.44467309762798046,
+        "absolute_standardized_coefficient": 0.44467309762798046,
+        "original_scale_coefficient": 0.5454930425978806,
+        "direction": "positive",
+        "absolute_contribution_rank": 4
+      },
+      {
+        "feature": "homo_ev",
+        "standardized_coefficient": 0.44247832116282965,
+        "absolute_standardized_coefficient": 0.44247832116282965,
+        "original_scale_coefficient": 0.5473335534839187,
+        "direction": "positive",
+        "absolute_contribution_rank": 5
+      },
+      {
+        "feature": "rotatable_bonds",
+        "standardized_coefficient": 0.38718547777778867,
+        "absolute_standardized_coefficient": 0.38718547777778867,
+        "original_scale_coefficient": 0.22838145258951956,
+        "direction": "positive",
+        "absolute_contribution_rank": 6
+      },
+      {
+        "feature": "lumo_ev",
+        "standardized_coefficient": 0.32875633196922105,
+        "absolute_standardized_coefficient": 0.32875633196922105,
+        "original_scale_coefficient": 0.40674099564440874,
+        "direction": "positive",
+        "absolute_contribution_rank": 7
+      },
+      {
+        "feature": "dipole_moment_debye",
+        "standardized_coefficient": 0.2478149976651552,
+        "absolute_standardized_coefficient": 0.2478149976651552,
+        "original_scale_coefficient": 0.1094768343066027,
+        "direction": "positive",
+        "absolute_contribution_rank": 8
+      },
+      {
+        "feature": "aromatic_rings",
+        "standardized_coefficient": 0.2297430595865806,
+        "absolute_standardized_coefficient": 0.2297430595865806,
+        "original_scale_coefficient": 0.3629965082055038,
+        "direction": "positive",
+        "absolute_contribution_rank": 9
+      },
+      {
+        "feature": "MW",
+        "standardized_coefficient": -0.20804695256383834,
+        "absolute_standardized_coefficient": 0.20804695256383834,
+        "original_scale_coefficient": -0.004915432046079285,
+        "direction": "negative",
+        "absolute_contribution_rank": 10
+      },
+      {
+        "feature": "HBA",
+        "standardized_coefficient": -0.18150022916882727,
+        "absolute_standardized_coefficient": 0.18150022916882727,
+        "original_scale_coefficient": -0.17939047136869735,
+        "direction": "negative",
+        "absolute_contribution_rank": 11
+      },
+      {
+        "feature": "total_nbo_charge",
+        "standardized_coefficient": -0.11784209855149069,
+        "absolute_standardized_coefficient": 0.11784209855149069,
+        "original_scale_coefficient": -3.926272007047557,
+        "direction": "negative",
+        "absolute_contribution_rank": 12
+      },
+      {
+        "feature": "acid_type",
+        "standardized_coefficient": -0.005753700067264726,
+        "absolute_standardized_coefficient": 0.005753700067264726,
+        "original_scale_coefficient": -0.019383726452155376,
+        "direction": "negative",
+        "absolute_contribution_rank": 13
+      }
+    ]
+  }
+}

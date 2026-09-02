@@ -1,0 +1,175 @@
+{
+  "model": "svr",
+  "target_column": "pka_value",
+  "metrics_note": "train_metricsは5foldの学習指標平均、test_metricsは各foldの検証指標平均です。標準偏差とfold別結果はcross_validationにあります。",
+  "feature_count": 13,
+  "features": [
+    "MW",
+    "logP",
+    "HBA",
+    "HBD",
+    "rotatable_bonds",
+    "aromatic_rings",
+    "acid_type",
+    "nearest_heteroatom_distance",
+    "h_nbo_charge",
+    "total_nbo_charge",
+    "dipole_moment_debye",
+    "homo_ev",
+    "lumo_ev"
+  ],
+  "data": {
+    "input_file": "C:\\Users\\kyoma\\Desktop\\laboratory\\ml\\predict_pka\\src\\pka_prediction\\df_features_cooh.csv",
+    "rows_read": 269,
+    "rows_used": 268,
+    "rows_excluded": 1,
+    "rows_with_invalid_smiles": 0,
+    "all_missing_features_filled_with_zero": []
+  },
+  "cross_validation": {
+    "method": "KFold",
+    "n_splits": 5,
+    "shuffle": true,
+    "random_state": 42,
+    "train_metrics_summary": {
+      "mean": {
+        "r2": 0.8703128239589069,
+        "rmse": 0.9077101561894959,
+        "mae": 0.3099486414354305
+      },
+      "std": {
+        "r2": 0.03891945685772007,
+        "rmse": 0.09877351544338804,
+        "mae": 0.01712934851367446
+      }
+    },
+    "validation_metrics_summary": {
+      "mean": {
+        "r2": 0.6659362562978705,
+        "rmse": 1.4367699721198304,
+        "mae": 0.7370049908188134
+      },
+      "std": {
+        "r2": 0.14482408207430145,
+        "rmse": 0.457740113709024,
+        "mae": 0.10835853490499067
+      }
+    },
+    "fold_metrics": [
+      {
+        "fold": 1,
+        "train_rows": 214,
+        "validation_rows": 54,
+        "train_metrics": {
+          "r2": 0.8407470849912029,
+          "rmse": 0.9992318669553414,
+          "mae": 0.31975852791832904
+        },
+        "validation_metrics": {
+          "r2": 0.7183217538249715,
+          "rmse": 1.4933792981679237,
+          "mae": 0.7961207672545897
+        }
+      },
+      {
+        "fold": 2,
+        "train_rows": 214,
+        "validation_rows": 54,
+        "train_metrics": {
+          "r2": 0.8978096977803999,
+          "rmse": 0.8612458104218425,
+          "mae": 0.3088199472712887
+        },
+        "validation_metrics": {
+          "r2": 0.7314223591325024,
+          "rmse": 1.0229069695515218,
+          "mae": 0.6940791191781365
+        }
+      },
+      {
+        "fold": 3,
+        "train_rows": 214,
+        "validation_rows": 54,
+        "train_metrics": {
+          "r2": 0.8815507364838733,
+          "rmse": 0.9222653815253935,
+          "mae": 0.3154379377019148
+        },
+        "validation_metrics": {
+          "r2": 0.8426869124043738,
+          "rmse": 0.8226287651216824,
+          "mae": 0.5566057526366455
+        }
+      },
+      {
+        "fold": 4,
+        "train_rows": 215,
+        "validation_rows": 53,
+        "train_metrics": {
+          "r2": 0.9194641506257039,
+          "rmse": 0.7432613849081985,
+          "mae": 0.27797332550452797
+        },
+        "validation_metrics": {
+          "r2": 0.4109323421159622,
+          "rmse": 1.8125369226463557,
+          "mae": 0.7585113191207523
+        }
+      },
+      {
+        "fold": 5,
+        "train_rows": 215,
+        "validation_rows": 53,
+        "train_metrics": {
+          "r2": 0.8119924499133543,
+          "rmse": 1.0125463371367038,
+          "mae": 0.327753468781092
+        },
+        "validation_metrics": {
+          "r2": 0.6263179140115421,
+          "rmse": 2.0323979051116687,
+          "mae": 0.879707995903943
+        }
+      }
+    ]
+  },
+  "train_metrics": {
+    "r2": 0.8703128239589069,
+    "rmse": 0.9077101561894959,
+    "mae": 0.3099486414354305
+  },
+  "test_metrics": {
+    "r2": 0.6659362562978705,
+    "rmse": 1.4367699721198304,
+    "mae": 0.7370049908188134
+  },
+  "train_metrics_std": {
+    "r2": 0.03891945685772007,
+    "rmse": 0.09877351544338804,
+    "mae": 0.01712934851367446
+  },
+  "test_metrics_std": {
+    "r2": 0.14482408207430145,
+    "rmse": 0.457740113709024,
+    "mae": 0.10835853490499067
+  },
+  "saved_model_training": "full_dataset_after_cross_validation",
+  "model_parameters": {
+    "C": 10.0,
+    "cache_size": 200,
+    "coef0": 0.0,
+    "degree": 3,
+    "epsilon": 0.1,
+    "gamma": "scale",
+    "kernel": "rbf",
+    "max_iter": -1,
+    "shrinking": true,
+    "tol": 0.001,
+    "verbose": false
+  },
+  "package_versions": {
+    "model_package": "1.9.0",
+    "scikit_learn": "1.9.0",
+    "pandas": "3.0.5"
+  }
+}

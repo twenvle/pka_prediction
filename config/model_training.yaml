@@ -1,0 +1,42 @@
+# パスは project_root を基準に解決されます。
+project_root: ".."
+
+# 使用するモデル: xgboost / svr / random_forest / ridge
+model_name: ridge
+input_path: data/out/csvfile/df_features_v6.csv
+target_column: pka_value
+output_root: out/model_results
+
+# 交差検証と再現性の設定
+n_splits: 5
+random_state: 42
+encoding: utf-8-sig
+
+# model_name で選択したモデルの設定だけが使用されます。
+model_parameters:
+  xgboost:
+    objective: "reg:squarederror"
+    n_estimators: 500
+    learning_rate: 0.05
+    max_depth: 4
+    min_child_weight: 1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    reg_alpha: 0.0
+    reg_lambda: 1.0
+    n_jobs: -1
+
+  svr:
+    kernel: rbf
+    C: 10.0
+    epsilon: 0.1
+    gamma: scale
+
+  random_forest:
+    n_estimators: 500
+    max_features: 1.0
+    min_samples_leaf: 1
+    n_jobs: -1
+
+  ridge:
+    alpha: 1.0

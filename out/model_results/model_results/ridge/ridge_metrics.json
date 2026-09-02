@@ -1,0 +1,445 @@
+{
+  "model": "ridge",
+  "target_column": "pka_value",
+  "metrics_note": "train_metricsは5foldの学習指標平均、test_metricsは各foldの検証指標平均です。標準偏差とfold別結果はcross_validationにあります。",
+  "feature_count": 25,
+  "features": [
+    "MW",
+    "logP",
+    "TPSA",
+    "HBA",
+    "HBD",
+    "rotatable_bonds",
+    "aromatic_rings",
+    "FractionCSP3",
+    "formal_charge",
+    "acid_type",
+    "acid_group_count",
+    "acid_center_aromatic_flag",
+    "local_heteroatom_count",
+    "local_halogen_count",
+    "nearest_heteroatom_distance",
+    "local_conjugation",
+    "local_formal_charge",
+    "polar",
+    "h_nbo_charge",
+    "o_nbo_charge",
+    "total_nbo_charge",
+    "dipole_moment_debye",
+    "homo_ev",
+    "lumo_ev",
+    "gap_ev"
+  ],
+  "data": {
+    "input_file": "C:\\Users\\kyoma\\Desktop\\laboratory\\ml\\predict_pka\\src\\pka_prediction\\df_features_cooh.csv",
+    "rows_read": 269,
+    "rows_used": 268,
+    "rows_excluded": 1,
+    "rows_with_invalid_smiles": 0,
+    "all_missing_features_filled_with_zero": []
+  },
+  "cross_validation": {
+    "method": "KFold",
+    "n_splits": 5,
+    "shuffle": true,
+    "random_state": 42,
+    "train_metrics_summary": {
+      "mean": {
+        "r2": 0.6102972154865172,
+        "rmse": 1.5992664721052534,
+        "mae": 1.1148159375027722
+      },
+      "std": {
+        "r2": 0.026670443923738216,
+        "rmse": 0.06449576039104545,
+        "mae": 0.04374028845427869
+      }
+    },
+    "validation_metrics_summary": {
+      "mean": {
+        "r2": 0.46300994801197526,
+        "rmse": 1.77472108314033,
+        "mae": 1.2318463747358313
+      },
+      "std": {
+        "r2": 0.19473992723811162,
+        "rmse": 0.27179867255915807,
+        "mae": 0.17496280481944582
+      }
+    },
+    "fold_metrics": [
+      {
+        "fold": 1,
+        "train_rows": 214,
+        "validation_rows": 54,
+        "train_metrics": {
+          "r2": 0.5858450637535279,
+          "rmse": 1.611402383198649,
+          "mae": 1.0782980831673266
+        },
+        "validation_metrics": {
+          "r2": 0.6301705591925658,
+          "rmse": 1.7111741585832925,
+          "mae": 1.1953353962191409
+        }
+      },
+      {
+        "fold": 2,
+        "train_rows": 214,
+        "validation_rows": 54,
+        "train_metrics": {
+          "r2": 0.6477899120050095,
+          "rmse": 1.598906897183081,
+          "mae": 1.127994393955977
+        },
+        "validation_metrics": {
+          "r2": 0.11486533117419351,
+          "rmse": 1.8569742690508266,
+          "mae": 1.417924465724657
+        }
+      },
+      {
+        "fold": 3,
+        "train_rows": 214,
+        "validation_rows": 54,
+        "train_metrics": {
+          "r2": 0.5954577712428695,
+          "rmse": 1.7044005126045871,
+          "mae": 1.1811719109569923
+        },
+        "validation_metrics": {
+          "r2": 0.6018458410400853,
+          "rmse": 1.3087210634261737,
+          "mae": 0.9298411112455539
+        }
+      },
+      {
+        "fold": 4,
+        "train_rows": 215,
+        "validation_rows": 53,
+        "train_metrics": {
+          "r2": 0.6369951705381354,
+          "rmse": 1.5779860154540302,
+          "mae": 1.1302570114875674
+        },
+        "validation_metrics": {
+          "r2": 0.38331889318153434,
+          "rmse": 1.8545331224804913,
+          "mae": 1.223578960986564
+        }
+      },
+      {
+        "fold": 5,
+        "train_rows": 215,
+        "validation_rows": 53,
+        "train_metrics": {
+          "r2": 0.5853981598930439,
+          "rmse": 1.5036365520859198,
+          "mae": 1.056358287945998
+        },
+        "validation_metrics": {
+          "r2": 0.5848491154714973,
+          "rmse": 2.142202802160866,
+          "mae": 1.3925519395032409
+        }
+      }
+    ]
+  },
+  "train_metrics": {
+    "r2": 0.6102972154865172,
+    "rmse": 1.5992664721052534,
+    "mae": 1.1148159375027722
+  },
+  "test_metrics": {
+    "r2": 0.46300994801197526,
+    "rmse": 1.77472108314033,
+    "mae": 1.2318463747358313
+  },
+  "train_metrics_std": {
+    "r2": 0.026670443923738216,
+    "rmse": 0.06449576039104545,
+    "mae": 0.04374028845427869
+  },
+  "test_metrics_std": {
+    "r2": 0.19473992723811162,
+    "rmse": 0.27179867255915807,
+    "mae": 0.17496280481944582
+  },
+  "saved_model_training": "full_dataset_after_cross_validation",
+  "model_parameters": {
+    "alpha": 1.0,
+    "copy_X": true,
+    "fit_intercept": true,
+    "max_iter": null,
+    "positive": false,
+    "random_state": null,
+    "solver": "auto",
+    "tol": 0.0001
+  },
+  "package_versions": {
+    "model_package": "1.9.0",
+    "scikit_learn": "1.9.0",
+    "pandas": "3.0.5"
+  },
+  "ridge_feature_contributions": {
+    "interpretation": "standardized_coefficientは他の特徴量を一定としたとき、特徴量が学習データ内で1標準偏差増加した場合の予測値の変化量です。絶対値が大きいほどRidgeモデル内での影響が大きく、正負は予測値を上げる・下げる方向を示します。因果関係を示す値ではありません。",
+    "standardized_intercept": 4.670279931888185,
+    "original_scale_intercept": 73.7546588576004,
+    "standardized_coefficients_by_feature": {
+      "MW": 0.3812086368971749,
+      "logP": -0.6661811556203443,
+      "TPSA": 1.7411174353108654,
+      "HBA": -1.64816406732241,
+      "HBD": 0.08123389563213071,
+      "rotatable_bonds": 0.7488729453406234,
+      "aromatic_rings": 2.022257248828574,
+      "FractionCSP3": 2.2389380081929167,
+      "formal_charge": 0.0,
+      "acid_type": 0.0,
+      "acid_group_count": -0.17765383653568242,
+      "acid_center_aromatic_flag": 0.0,
+      "local_heteroatom_count": -0.17765383653567215,
+      "local_halogen_count": 0.0,
+      "nearest_heteroatom_distance": -0.17765383653568087,
+      "local_conjugation": -0.17765383653567657,
+      "local_formal_charge": 0.0,
+      "polar": -1.8471324006935816,
+      "h_nbo_charge": -0.4904203268275598,
+      "o_nbo_charge": -0.0696473950343479,
+      "total_nbo_charge": -0.03745402002133795,
+      "dipole_moment_debye": 0.07615938085053921,
+      "homo_ev": 0.9182962835149961,
+      "lumo_ev": -0.18478489244259688,
+      "gap_ev": -0.7157507457327955
+    },
+    "original_scale_coefficients_by_feature": {
+      "MW": 0.009627336225703411,
+      "logP": -0.542402155415266,
+      "TPSA": 0.07755769402495499,
+      "HBA": -1.7466045560238461,
+      "HBD": 0.09695894509557014,
+      "rotatable_bonds": 0.4278943281911396,
+      "aromatic_rings": 3.405218838916872,
+      "FractionCSP3": 7.633251149617974,
+      "formal_charge": 0.0,
+      "acid_type": 0.0,
+      "acid_group_count": -0.44860391965740165,
+      "acid_center_aromatic_flag": 0.0,
+      "local_heteroatom_count": -0.4486039196573757,
+      "local_halogen_count": 0.0,
+      "nearest_heteroatom_distance": -0.22430195982869888,
+      "local_conjugation": -0.4486039196573869,
+      "local_formal_charge": 0.0,
+      "polar": -0.04168437007364355,
+      "h_nbo_charge": -111.6511754419167,
+      "o_nbo_charge": -7.411169244413918,
+      "total_nbo_charge": -1.6196206219030949,
+      "dipole_moment_debye": 0.04219162148703092,
+      "homo_ev": 1.1879419878316775,
+      "lumo_ev": -0.22761739255366725,
+      "gap_ev": -0.5957875710252425
+    },
+    "ranking_by_absolute_standardized_coefficient": [
+      {
+        "feature": "FractionCSP3",
+        "standardized_coefficient": 2.2389380081929167,
+        "absolute_standardized_coefficient": 2.2389380081929167,
+        "original_scale_coefficient": 7.633251149617974,
+        "direction": "positive",
+        "absolute_contribution_rank": 1
+      },
+      {
+        "feature": "aromatic_rings",
+        "standardized_coefficient": 2.022257248828574,
+        "absolute_standardized_coefficient": 2.022257248828574,
+        "original_scale_coefficient": 3.405218838916872,
+        "direction": "positive",
+        "absolute_contribution_rank": 2
+      },
+      {
+        "feature": "polar",
+        "standardized_coefficient": -1.8471324006935816,
+        "absolute_standardized_coefficient": 1.8471324006935816,
+        "original_scale_coefficient": -0.04168437007364355,
+        "direction": "negative",
+        "absolute_contribution_rank": 3
+      },
+      {
+        "feature": "TPSA",
+        "standardized_coefficient": 1.7411174353108654,
+        "absolute_standardized_coefficient": 1.7411174353108654,
+        "original_scale_coefficient": 0.07755769402495499,
+        "direction": "positive",
+        "absolute_contribution_rank": 4
+      },
+      {
+        "feature": "HBA",
+        "standardized_coefficient": -1.64816406732241,
+        "absolute_standardized_coefficient": 1.64816406732241,
+        "original_scale_coefficient": -1.7466045560238461,
+        "direction": "negative",
+        "absolute_contribution_rank": 5
+      },
+      {
+        "feature": "homo_ev",
+        "standardized_coefficient": 0.9182962835149961,
+        "absolute_standardized_coefficient": 0.9182962835149961,
+        "original_scale_coefficient": 1.1879419878316775,
+        "direction": "positive",
+        "absolute_contribution_rank": 6
+      },
+      {
+        "feature": "rotatable_bonds",
+        "standardized_coefficient": 0.7488729453406234,
+        "absolute_standardized_coefficient": 0.7488729453406234,
+        "original_scale_coefficient": 0.4278943281911396,
+        "direction": "positive",
+        "absolute_contribution_rank": 7
+      },
+      {
+        "feature": "gap_ev",
+        "standardized_coefficient": -0.7157507457327955,
+        "absolute_standardized_coefficient": 0.7157507457327955,
+        "original_scale_coefficient": -0.5957875710252425,
+        "direction": "negative",
+        "absolute_contribution_rank": 8
+      },
+      {
+        "feature": "logP",
+        "standardized_coefficient": -0.6661811556203443,
+        "absolute_standardized_coefficient": 0.6661811556203443,
+        "original_scale_coefficient": -0.542402155415266,
+        "direction": "negative",
+        "absolute_contribution_rank": 9
+      },
+      {
+        "feature": "h_nbo_charge",
+        "standardized_coefficient": -0.4904203268275598,
+        "absolute_standardized_coefficient": 0.4904203268275598,
+        "original_scale_coefficient": -111.6511754419167,
+        "direction": "negative",
+        "absolute_contribution_rank": 10
+      },
+      {
+        "feature": "MW",
+        "standardized_coefficient": 0.3812086368971749,
+        "absolute_standardized_coefficient": 0.3812086368971749,
+        "original_scale_coefficient": 0.009627336225703411,
+        "direction": "positive",
+        "absolute_contribution_rank": 11
+      },
+      {
+        "feature": "lumo_ev",
+        "standardized_coefficient": -0.18478489244259688,
+        "absolute_standardized_coefficient": 0.18478489244259688,
+        "original_scale_coefficient": -0.22761739255366725,
+        "direction": "negative",
+        "absolute_contribution_rank": 12
+      },
+      {
+        "feature": "acid_group_count",
+        "standardized_coefficient": -0.17765383653568242,
+        "absolute_standardized_coefficient": 0.17765383653568242,
+        "original_scale_coefficient": -0.44860391965740165,
+        "direction": "negative",
+        "absolute_contribution_rank": 13
+      },
+      {
+        "feature": "nearest_heteroatom_distance",
+        "standardized_coefficient": -0.17765383653568087,
+        "absolute_standardized_coefficient": 0.17765383653568087,
+        "original_scale_coefficient": -0.22430195982869888,
+        "direction": "negative",
+        "absolute_contribution_rank": 14
+      },
+      {
+        "feature": "local_conjugation",
+        "standardized_coefficient": -0.17765383653567657,
+        "absolute_standardized_coefficient": 0.17765383653567657,
+        "original_scale_coefficient": -0.4486039196573869,
+        "direction": "negative",
+        "absolute_contribution_rank": 15
+      },
+      {
+        "feature": "local_heteroatom_count",
+        "standardized_coefficient": -0.17765383653567215,
+        "absolute_standardized_coefficient": 0.17765383653567215,
+        "original_scale_coefficient": -0.4486039196573757,
+        "direction": "negative",
+        "absolute_contribution_rank": 16
+      },
+      {
+        "feature": "HBD",
+        "standardized_coefficient": 0.08123389563213071,
+        "absolute_standardized_coefficient": 0.08123389563213071,
+        "original_scale_coefficient": 0.09695894509557014,
+        "direction": "positive",
+        "absolute_contribution_rank": 17
+      },
+      {
+        "feature": "dipole_moment_debye",
+        "standardized_coefficient": 0.07615938085053921,
+        "absolute_standardized_coefficient": 0.07615938085053921,
+        "original_scale_coefficient": 0.04219162148703092,
+        "direction": "positive",
+        "absolute_contribution_rank": 18
+      },
+      {
+        "feature": "o_nbo_charge",
+        "standardized_coefficient": -0.0696473950343479,
+        "absolute_standardized_coefficient": 0.0696473950343479,
+        "original_scale_coefficient": -7.411169244413918,
+        "direction": "negative",
+        "absolute_contribution_rank": 19
+      },
+      {
+        "feature": "total_nbo_charge",
+        "standardized_coefficient": -0.03745402002133795,
+        "absolute_standardized_coefficient": 0.03745402002133795,
+        "original_scale_coefficient": -1.6196206219030949,
+        "direction": "negative",
+        "absolute_contribution_rank": 20
+      },
+      {
+        "feature": "formal_charge",
+        "standardized_coefficient": 0.0,
+        "absolute_standardized_coefficient": 0.0,
+        "original_scale_coefficient": 0.0,
+        "direction": "zero",
+        "absolute_contribution_rank": 21
+      },
+      {
+        "feature": "acid_type",
+        "standardized_coefficient": 0.0,
+        "absolute_standardized_coefficient": 0.0,
+        "original_scale_coefficient": 0.0,
+        "direction": "zero",
+        "absolute_contribution_rank": 22
+      },
+      {
+        "feature": "acid_center_aromatic_flag",
+        "standardized_coefficient": 0.0,
+        "absolute_standardized_coefficient": 0.0,
+        "original_scale_coefficient": 0.0,
+        "direction": "zero",
+        "absolute_contribution_rank": 23
+      },
+      {
+        "feature": "local_halogen_count",
+        "standardized_coefficient": 0.0,
+        "absolute_standardized_coefficient": 0.0,
+        "original_scale_coefficient": 0.0,
+        "direction": "zero",
+        "absolute_contribution_rank": 24
+      },
+      {
+        "feature": "local_formal_charge",
+        "standardized_coefficient": 0.0,
+        "absolute_standardized_coefficient": 0.0,
+        "original_scale_coefficient": 0.0,
+        "direction": "zero",
+        "absolute_contribution_rank": 25
+      }
+    ]
+  }
+}

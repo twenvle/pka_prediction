@@ -1,196 +1,34 @@
 #!/usr/bin/env python3
-"""Notebook と CLI から共用できる回帰モデル学習処理。"""
+"""XGBoost、SVR、Random Forest、Ridge用の共通回帰学習処理。"""
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import statistics
-from dataclasses import dataclass, field
+import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
-
 
 # extract_smiles_features.py が生成する数値特徴量を全て使用する。
 FEATURE_COLUMNS = (
     "MW",
     "logP",
-    "TPSA",
     "HBA",
     "HBD",
     "rotatable_bonds",
     "aromatic_rings",
-    "FractionCSP3",
-    "formal_charge",
     "acid_type",
-    "acid_group_count",
-    "acid_center_aromatic_flag",
-    "local_heteroatom_count",
-    "local_halogen_count",
     "nearest_heteroatom_distance",
-    "local_conjugation",
-    "local_formal_charge",
+    "h_nbo_charge",
+    "total_nbo_charge",
+    "dipole_moment_debye",
+    "homo_ev",
+    "lumo_ev",
 )
 
 MODEL_NAMES = ("xgboost", "svr", "random_forest", "ridge")
-
-
-@dataclass(frozen=True)
-class TrainingConfig:
-    """学習条件。
-
-    Notebook ではこのクラスを直接生成するか、``load_training_config`` で
-    YAML から読み込んで ``train_model`` に渡す。
-    """
-
-    model_name: str
-    input_path: Path | str
-    target_column: str
-    output_dir: Path | str | None = None
-    n_splits: int = 5
-    random_state: int = 42
-    encoding: str = "utf-8-sig"
-    model_parameters: Mapping[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        if self.model_name not in MODEL_NAMES:
-            raise ValueError(
-                f"未対応のモデルです: {self.model_name} "
-                f"（選択肢: {', '.join(MODEL_NAMES)}）"
-            )
-        if not str(self.target_column).strip():
-            raise ValueError("target_column を指定してください")
-        if self.n_splits < 2:
-            raise ValueError("n_splits は2以上にしてください")
-        if not isinstance(self.model_parameters, Mapping):
-            raise TypeError("model_parameters は辞書形式で指定してください")
-
-        object.__setattr__(self, "input_path", Path(self.input_path))
-        if self.output_dir is not None:
-            object.__setattr__(self, "output_dir", Path(self.output_dir))
-        object.__setattr__(self, "model_parameters", dict(self.model_parameters))
-
-    @property
-    def resolved_output_dir(self) -> Path:
-        """成果物の保存先。未指定時は従来と同じ相対パスを使用する。"""
-        if self.output_dir is not None:
-            return self.output_dir
-        return Path("model_results") / self.model_name
-
-    @classmethod
-    def from_mapping(
-        cls,
-        values: Mapping[str, Any],
-        *,
-        base_dir: Path | str | None = None,
-    ) -> "TrainingConfig":
-        """辞書から設定を生成し、相対パスを設定ファイル基準で解決する。"""
-        base = Path.cwd() if base_dir is None else Path(base_dir)
-        project_root_value = values.get("project_root", ".")
-        project_root = _resolve_path(project_root_value, base)
-
-        model_name = values.get("model_name", values.get("model"))
-        if not model_name:
-            raise ValueError("model_name を指定してください")
-
-        input_value = values.get("input_path", values.get("input"))
-        if not input_value:
-            raise ValueError("input_path を指定してください")
-
-        target_column = values.get("target_column")
-        if not target_column:
-            raise ValueError("target_column を指定してください")
-
-        output_value = values.get("output_dir")
-        if output_value:
-            output_dir = _resolve_path(output_value, project_root)
-        else:
-            output_root = values.get("output_root")
-            output_dir = (
-                _resolve_path(output_root, project_root) / str(model_name)
-                if output_root
-                else project_root / "model_results" / str(model_name)
-            )
-
-        all_model_parameters = values.get("model_parameters", {})
-        if not isinstance(all_model_parameters, Mapping):
-            raise TypeError("model_parameters は辞書形式で指定してください")
-        if any(name in all_model_parameters for name in MODEL_NAMES):
-            model_parameters = all_model_parameters.get(str(model_name), {})
-        else:
-            model_parameters = all_model_parameters
-        if not isinstance(model_parameters, Mapping):
-            raise TypeError(
-                f"model_parameters.{model_name} は辞書形式で指定してください"
-            )
-
-        return cls(
-            model_name=str(model_name),
-            input_path=_resolve_path(input_value, project_root),
-            target_column=str(target_column),
-            output_dir=output_dir,
-            n_splits=int(values.get("n_splits", 5)),
-            random_state=int(values.get("random_state", 42)),
-            encoding=str(values.get("encoding", "utf-8-sig")),
-            model_parameters=dict(model_parameters),
-        )
-
-
-@dataclass
-class TrainingResult:
-    """Notebook から後続処理に利用できる学習結果。"""
-
-    config: TrainingConfig
-    pipeline: Any
-    metrics: dict[str, Any]
-    cv_predictions: Any
-    model_path: Path | None = None
-    metrics_path: Path | None = None
-    predictions_path: Path | None = None
-
-
-def _resolve_path(value: Any, base_dir: Path) -> Path:
-    path = Path(str(value)).expanduser()
-    if not path.is_absolute():
-        path = base_dir / path
-    return path.resolve()
-
-
-def _read_config_mapping(config_path: Path | str) -> tuple[dict[str, Any], Path]:
-    path = Path(config_path).expanduser().resolve()
-    try:
-        import yaml
-    except ImportError as exc:
-        raise RuntimeError(
-            "YAML設定の読み込みにはPyYAMLが必要です。次のコマンドで"
-            "導入してください: pip install PyYAML"
-        ) from exc
-
-    try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except yaml.YAMLError as exc:
-        raise ValueError(
-            f"設定ファイルのYAMLが不正です: {path}: {exc}"
-        ) from exc
-    if not isinstance(raw, dict):
-        raise ValueError("設定ファイルの最上位はYAMLのマッピング形式にしてください")
-    return raw, path
-
-
-def load_training_config(
-    config_path: Path | str,
-    *,
-    overrides: Mapping[str, Any] | None = None,
-) -> TrainingConfig:
-    """YAML 設定を読み込み、任意の値で上書きして学習条件を返す。
-
-    相対パスは設定ファイルを基準に解決する。``overrides`` は Notebook や
-    CLI など呼び出し元を限定しない汎用的な設定上書きとして扱う。
-    """
-    values, path = _read_config_mapping(config_path)
-    if overrides:
-        values.update(overrides)
-    return TrainingConfig.from_mapping(values, base_dir=path.parent)
 
 
 def _import_dependencies() -> dict[str, Any]:
@@ -207,7 +45,7 @@ def _import_dependencies() -> dict[str, Any]:
         from sklearn.preprocessing import StandardScaler
         from sklearn.svm import SVR
     except ImportError as exc:
-        raise RuntimeError(
+        raise SystemExit(
             "学習に必要なパッケージがありません。次のコマンドで導入してください:\n"
             "pip install pandas scikit-learn joblib xgboost"
         ) from exc
@@ -229,50 +67,34 @@ def _import_dependencies() -> dict[str, Any]:
     }
 
 
-def _build_pipeline(
-    model_name: str,
-    deps: Mapping[str, Any],
-    random_state: int,
-    model_parameters: Mapping[str, Any] | None = None,
-) -> tuple[Any, Any, str]:
+def _build_pipeline(model_name: str, deps: Mapping[str, Any], random_state: int) -> Any:
     imputer = deps["SimpleImputer"](strategy="median")
-    overrides = dict(model_parameters or {})
 
     if model_name == "xgboost":
         try:
             import xgboost
             from xgboost import XGBRegressor
         except ImportError as exc:
-            raise RuntimeError(
-                "XGBoostがありません。次のコマンドで導入してください: "
-                "pip install xgboost"
+            raise SystemExit(
+                "XGBoostがありません。次のコマンドで導入してください: pip install xgboost"
             ) from exc
-        parameters = {
-            "objective": "reg:squarederror",
-            "n_estimators": 500,
-            "learning_rate": 0.05,
-            "max_depth": 4,
-            "min_child_weight": 1,
-            "subsample": 0.8,
-            "colsample_bytree": 0.8,
-            "reg_alpha": 0.0,
-            "reg_lambda": 1.0,
-            "random_state": random_state,
-            "n_jobs": -1,
-        }
-        parameters.update(overrides)
-        estimator = XGBRegressor(**parameters)
+        estimator = XGBRegressor(
+            objective="reg:squarederror",
+            n_estimators=500,
+            learning_rate=0.05,
+            max_depth=4,
+            min_child_weight=3,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            reg_alpha=0.0,
+            reg_lambda=1.0,
+            random_state=random_state,
+            n_jobs=-1,
+        )
         steps = [("imputer", imputer), ("model", estimator)]
         package_version = xgboost.__version__
     elif model_name == "svr":
-        parameters = {
-            "kernel": "rbf",
-            "C": 10.0,
-            "epsilon": 0.1,
-            "gamma": "scale",
-        }
-        parameters.update(overrides)
-        estimator = deps["SVR"](**parameters)
+        estimator = deps["SVR"](kernel="rbf", C=10.0, epsilon=0.1, gamma="scale")
         steps = [
             ("imputer", imputer),
             ("scaler", deps["StandardScaler"]()),
@@ -280,21 +102,21 @@ def _build_pipeline(
         ]
         package_version = deps["sklearn"].__version__
     elif model_name == "random_forest":
-        parameters = {
-            "n_estimators": 500,
-            "max_features": 1.0,
-            "min_samples_leaf": 1,
-            "random_state": random_state,
-            "n_jobs": -1,
-        }
-        parameters.update(overrides)
-        estimator = deps["RandomForestRegressor"](**parameters)
+        estimator = deps["RandomForestRegressor"](
+            n_estimators=500,
+            max_depth=5,
+            min_samples_split=10,
+            min_samples_leaf=5,
+            max_features=0.5,
+            max_samples=0.8,
+            bootstrap=True,
+            random_state=random_state,
+            n_jobs=-1,
+        )
         steps = [("imputer", imputer), ("model", estimator)]
         package_version = deps["sklearn"].__version__
     elif model_name == "ridge":
-        parameters = {"alpha": 1.0}
-        parameters.update(overrides)
-        estimator = deps["Ridge"](**parameters)
+        estimator = deps["Ridge"](alpha=1.0)
         steps = [
             ("imputer", imputer),
             ("scaler", deps["StandardScaler"]()),
@@ -309,7 +131,9 @@ def _build_pipeline(
 
 
 def _resolve_column(columns: Sequence[str], requested: str) -> str:
-    matches = [column for column in columns if column.casefold() == requested.casefold()]
+    matches = [
+        column for column in columns if column.casefold() == requested.casefold()
+    ]
     if not matches:
         raise ValueError(f"列 '{requested}' が入力CSVに見つかりません")
     if len(matches) > 1:
@@ -360,8 +184,7 @@ def _prepare_data(
     valid_indices = frame.index[valid_mask]
     if len(valid_indices) < 4:
         raise ValueError(
-            "有効な学習データが少なすぎます。目的変数が数値である有効行を"
-            "4行以上用意してください"
+            "有効な学習データが少なすぎます。目的変数が数値である有効行を4行以上用意してください"
         )
 
     feature_frame = pd.DataFrame(index=valid_indices)
@@ -442,9 +265,7 @@ def _ridge_feature_contributions(pipeline: Any) -> dict[str, Any]:
             "direction": (
                 "positive"
                 if coefficient > 0
-                else "negative"
-                if coefficient < 0
-                else "zero"
+                else "negative" if coefficient < 0 else "zero"
             ),
         }
         for feature, coefficient, original_coefficient in zip(
@@ -453,7 +274,9 @@ def _ridge_feature_contributions(pipeline: Any) -> dict[str, Any]:
             original_scale_coefficients,
         )
     ]
-    details.sort(key=lambda item: item["absolute_standardized_coefficient"], reverse=True)
+    details.sort(
+        key=lambda item: item["absolute_standardized_coefficient"], reverse=True
+    )
     for rank, detail in enumerate(details, start=1):
         detail["absolute_contribution_rank"] = rank
 
@@ -497,14 +320,15 @@ def _summarize_fold_metrics(
     }
 
 
-def _build_cv_predictions(
+def _save_cv_predictions(
     source_frame: Any,
     used_indices: Any,
     target_column: str,
     fold_assignments: Any,
     out_of_fold_predictions: Any,
+    output_path: Path,
     deps: Mapping[str, Any],
-) -> Any:
+) -> None:
     pd = deps["pd"]
     output = source_frame.loc[used_indices].copy()
     source_row_column = _unused_column_name(list(output.columns), "source_csv_row")
@@ -523,42 +347,61 @@ def _build_cv_predictions(
         pd.to_numeric(output[target_column], errors="coerce")
         - out_of_fold_predictions.loc[used_indices]
     )
-    return output
+    output.to_csv(output_path, index=False, encoding="utf-8-sig")
 
 
-def train_model(
-    config: TrainingConfig | Mapping[str, Any],
-    *,
-    save_artifacts: bool = True,
-) -> TrainingResult:
-    """設定に従って交差検証と全データでの学習を行う。
+def build_parser(model_name: str) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=f"全特徴量を使用して{model_name}回帰モデルを学習します。"
+    )
+    parser.add_argument("-i", "--input", type=Path, required=True, help="特徴量CSV")
+    parser.add_argument(
+        "-t", "--target-column", required=True, help="予測対象となる目的変数の列名"
+    )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        type=Path,
+        default=Path("model_results") / model_name,
+        help=f"保存先フォルダ（既定: model_results/{model_name}）",
+    )
+    parser.add_argument(
+        "--n-splits", type=int, default=5, help="K-Foldの分割数（既定: 5）"
+    )
+    parser.add_argument(
+        "--random-state", type=int, default=42, help="乱数シード（既定: 42）"
+    )
+    parser.add_argument(
+        "--encoding", default="utf-8-sig", help="入力CSVの文字コード（既定: utf-8-sig）"
+    )
+    return parser
 
-    CLI 固有の引数解析や表示を含まないため、Notebook からそのまま利用できる。
-    ``save_artifacts=False`` を指定するとファイルを書き出さず、結果だけを返す。
-    """
-    if not isinstance(config, TrainingConfig):
-        config = TrainingConfig.from_mapping(config)
+
+def run_training(model_name: str, argv: Sequence[str] | None = None) -> int:
+    if model_name not in MODEL_NAMES:
+        raise ValueError(f"未対応のモデルです: {model_name}")
+    parser = build_parser(model_name)
+    args = parser.parse_args(argv)
+    if args.n_splits < 2:
+        parser.error("--n-splits は2以上にしてください")
 
     deps = _import_dependencies()
-    data = _prepare_data(
-        config.input_path,
-        config.target_column,
-        config.encoding,
-        deps,
-    )
+    try:
+        data = _prepare_data(args.input, args.target_column, args.encoding, deps)
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
 
     X = data["X"]
     y = data["y"]
-    if len(X) < config.n_splits * 2:
-        raise ValueError(
-            "各検証foldでR2を計算するには、データ行数が n_splits の"
-            "2倍以上必要です"
+    if len(X) < args.n_splits * 2:
+        parser.error(
+            "各検証foldでR2を計算するには、データ行数が --n-splits の2倍以上必要です"
         )
 
     cv = deps["KFold"](
-        n_splits=config.n_splits,
+        n_splits=args.n_splits,
         shuffle=True,
-        random_state=config.random_state,
+        random_state=args.random_state,
     )
     pd = deps["pd"]
     out_of_fold_predictions = pd.Series(index=X.index, dtype="float64")
@@ -572,12 +415,7 @@ def train_model(
         X_validation = X.iloc[validation_positions]
         y_train = y.iloc[train_positions]
         y_validation = y.iloc[validation_positions]
-        fold_pipeline, _, _ = _build_pipeline(
-            config.model_name,
-            deps,
-            config.random_state,
-            config.model_parameters,
-        )
+        fold_pipeline, _, _ = _build_pipeline(model_name, deps, args.random_state)
         fold_pipeline.fit(X_train, y_train)
         train_predictions = fold_pipeline.predict(X_train)
         validation_predictions = fold_pipeline.predict(X_validation)
@@ -596,31 +434,31 @@ def train_model(
         )
 
     train_summary = _summarize_fold_metrics(fold_results, "train_metrics")
-    validation_summary = _summarize_fold_metrics(
-        fold_results, "validation_metrics"
-    )
+    validation_summary = _summarize_fold_metrics(fold_results, "validation_metrics")
 
-    # 保存・予測用モデルは交差検証後に全データで改めて学習する。
+    # 保存用モデルは交差検証後に全データで改めて学習する。
     pipeline, estimator, package_version = _build_pipeline(
-        config.model_name,
-        deps,
-        config.random_state,
-        config.model_parameters,
+        model_name, deps, args.random_state
     )
     pipeline.fit(X, y)
 
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    model_path = args.output_dir / f"{model_name}_model.joblib"
+    metrics_path = args.output_dir / f"{model_name}_metrics.json"
+    predictions_path = args.output_dir / f"{model_name}_predictions.csv"
+    deps["joblib"].dump(pipeline, model_path)
+
     metrics = {
-        "model": config.model_name,
+        "model": model_name,
         "target_column": data["target_column"],
         "metrics_note": (
-            f"train_metricsは{config.n_splits}foldの学習指標平均、"
-            "test_metricsは各foldの検証指標平均です。標準偏差とfold別結果は"
-            "cross_validationにあります。"
+            "train_metricsは5foldの学習指標平均、test_metricsは各foldの"
+            "検証指標平均です。標準偏差とfold別結果はcross_validationにあります。"
         ),
         "feature_count": len(FEATURE_COLUMNS),
         "features": list(FEATURE_COLUMNS),
         "data": {
-            "input_file": str(config.input_path.resolve()),
+            "input_file": str(args.input.resolve()),
             "rows_read": data["rows_read"],
             "rows_used": data["rows_used"],
             "rows_excluded": data["rows_excluded"],
@@ -631,9 +469,9 @@ def train_model(
         },
         "cross_validation": {
             "method": "KFold",
-            "n_splits": config.n_splits,
+            "n_splits": args.n_splits,
             "shuffle": True,
-            "random_state": config.random_state,
+            "random_state": args.random_state,
             "train_metrics_summary": train_summary,
             "validation_metrics_summary": validation_summary,
             "fold_metrics": fold_results,
@@ -651,41 +489,40 @@ def train_model(
             "pandas": deps["pd"].__version__,
         },
     }
-    if config.model_name == "ridge":
-        metrics["ridge_feature_contributions"] = _ridge_feature_contributions(
-            pipeline
-        )
-
-    cv_predictions = _build_cv_predictions(
+    if model_name == "ridge":
+        metrics["ridge_feature_contributions"] = _ridge_feature_contributions(pipeline)
+    metrics_path.write_text(
+        json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    _save_cv_predictions(
         data["frame"],
         X.index,
         data["target_column"],
         fold_assignments,
         out_of_fold_predictions,
+        predictions_path,
         deps,
     )
 
-    model_path: Path | None = None
-    metrics_path: Path | None = None
-    predictions_path: Path | None = None
-    if save_artifacts:
-        output_dir = config.resolved_output_dir
-        output_dir.mkdir(parents=True, exist_ok=True)
-        model_path = output_dir / f"{config.model_name}_model.joblib"
-        metrics_path = output_dir / f"{config.model_name}_metrics.json"
-        predictions_path = output_dir / f"{config.model_name}_predictions.csv"
-        deps["joblib"].dump(pipeline, model_path)
-        metrics_path.write_text(
-            json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        cv_predictions.to_csv(predictions_path, index=False, encoding="utf-8-sig")
-
-    return TrainingResult(
-        config=config,
-        pipeline=pipeline,
-        metrics=metrics,
-        cv_predictions=cv_predictions,
-        model_path=model_path,
-        metrics_path=metrics_path,
-        predictions_path=predictions_path,
+    print(f"モデル: {model_path}")
+    print(f"評価指標: {metrics_path}")
+    print(f"予測値: {predictions_path}")
+    print(
+        f"{args.n_splits}-Fold CV評価: "
+        f"R2={metrics['test_metrics']['r2']:.6f}, "
+        f"RMSE={metrics['test_metrics']['rmse']:.6f}, "
+        f"MAE={metrics['test_metrics']['mae']:.6f} "
+        f"(std: R2={metrics['test_metrics_std']['r2']:.6f}, "
+        f"RMSE={metrics['test_metrics_std']['rmse']:.6f}, "
+        f"MAE={metrics['test_metrics_std']['mae']:.6f})"
     )
+    return 0
+
+
+if __name__ == "__main__":
+    print(
+        "このファイルは共通処理です。train_xgboost.py、train_svr.py、"
+        "train_random_forest.py、train_ridge.py のいずれかを実行してください。",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
