@@ -1,5 +1,6 @@
 data/reference/
 .venv/
+src/pka_prediction/memo/
 
 # *.拡張子　　すべてのその拡張子ファイルを無視
 # フォルダ名/　　フォルダ丸ごと無視

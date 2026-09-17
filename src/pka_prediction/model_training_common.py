@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Notebook と CLI から共用できる回帰モデル学習処理。"""
+"""Nested CVによる回帰モデル学習をNotebookとCLIから共用する。"""
 
 from __future__ import annotations
 
@@ -11,25 +11,24 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
-# extract_smiles_features.py が生成する数値特徴量を全て使用する。
+# この版で使用する量子化学・分子記述子。
 FEATURE_COLUMNS = (
+    "polar",
+    "h_nbo_charge",
+    "o_nbo_charge",
+    "total_nbo_charge",
+    "dipole_moment_debye",
+    "homo_ev",
+    "lumo_ev",
+    "gap_ev",
     "MW",
     "logP",
-    "TPSA",
     "HBA",
     "HBD",
     "rotatable_bonds",
     "aromatic_rings",
     "FractionCSP3",
-    "formal_charge",
-    "acid_type",
     "acid_group_count",
-    "acid_center_aromatic_flag",
-    "local_heteroatom_count",
-    "local_halogen_count",
-    "nearest_heteroatom_distance",
-    "local_conjugation",
-    "local_formal_charge",
 )
 
 MODEL_NAMES = ("xgboost", "svr", "random_forest", "ridge")
@@ -37,10 +36,11 @@ MODEL_NAMES = ("xgboost", "svr", "random_forest", "ridge")
 
 @dataclass(frozen=True)
 class TrainingConfig:
-    """学習条件。
+    """Nested CVを含む学習条件。
 
-    Notebook ではこのクラスを直接生成するか、``load_training_config`` で
-    YAML から読み込んで ``train_model`` に渡す。
+    ``model_parameters`` は探索しない推定器の固定設定、
+    ``hyperparameter_grid`` は内側CVで探索する候補を表す。
+    探索候補のキーは ``alpha`` と ``model__alpha`` のどちらでも指定できる。
     """
 
     model_name: str
@@ -48,9 +48,11 @@ class TrainingConfig:
     target_column: str
     output_dir: Path | str | None = None
     n_splits: int = 5
+    inner_splits: int = 5
     random_state: int = 42
     encoding: str = "utf-8-sig"
     model_parameters: Mapping[str, Any] = field(default_factory=dict)
+    hyperparameter_grid: Mapping[str, Sequence[Any]] | None = None
 
     def __post_init__(self) -> None:
         if self.model_name not in MODEL_NAMES:
@@ -62,17 +64,41 @@ class TrainingConfig:
             raise ValueError("target_column を指定してください")
         if self.n_splits < 2:
             raise ValueError("n_splits は2以上にしてください")
+        if self.inner_splits < 2:
+            raise ValueError("inner_splits は2以上にしてください")
         if not isinstance(self.model_parameters, Mapping):
             raise TypeError("model_parameters は辞書形式で指定してください")
+        if self.hyperparameter_grid is not None and not isinstance(
+            self.hyperparameter_grid, Mapping
+        ):
+            raise TypeError("hyperparameter_grid は辞書形式で指定してください")
+
+        normalized_grid: dict[str, list[Any]] | None = None
+        if self.hyperparameter_grid is not None:
+            normalized_grid = {}
+            for name, candidates in self.hyperparameter_grid.items():
+                if isinstance(candidates, (str, bytes)) or not isinstance(
+                    candidates, Sequence
+                ):
+                    raise TypeError(
+                        f"hyperparameter_grid.{name} は候補値のリストにしてください"
+                    )
+                if not candidates:
+                    raise ValueError(
+                        f"hyperparameter_grid.{name} に候補値がありません"
+                    )
+                normalized_grid[str(name)] = list(candidates)
+            if not normalized_grid:
+                raise ValueError("hyperparameter_grid を空にすることはできません")
 
         object.__setattr__(self, "input_path", Path(self.input_path))
         if self.output_dir is not None:
             object.__setattr__(self, "output_dir", Path(self.output_dir))
         object.__setattr__(self, "model_parameters", dict(self.model_parameters))
+        object.__setattr__(self, "hyperparameter_grid", normalized_grid)
 
     @property
     def resolved_output_dir(self) -> Path:
-        """成果物の保存先。未指定時は従来と同じ相対パスを使用する。"""
         if self.output_dir is not None:
             return self.output_dir
         return Path("model_results") / self.model_name
@@ -86,17 +112,16 @@ class TrainingConfig:
     ) -> "TrainingConfig":
         """辞書から設定を生成し、相対パスを設定ファイル基準で解決する。"""
         base = Path.cwd() if base_dir is None else Path(base_dir)
-        project_root_value = values.get("project_root", ".")
-        project_root = _resolve_path(project_root_value, base)
+        project_root = _resolve_path(values.get("project_root", "."), base)
 
         model_name = values.get("model_name", values.get("model"))
         if not model_name:
             raise ValueError("model_name を指定してください")
+        model_name = str(model_name)
 
         input_value = values.get("input_path", values.get("input"))
         if not input_value:
             raise ValueError("input_path を指定してください")
-
         target_column = values.get("target_column")
         if not target_column:
             raise ValueError("target_column を指定してください")
@@ -107,38 +132,44 @@ class TrainingConfig:
         else:
             output_root = values.get("output_root")
             output_dir = (
-                _resolve_path(output_root, project_root) / str(model_name)
+                _resolve_path(output_root, project_root) / model_name
                 if output_root
-                else project_root / "model_results" / str(model_name)
+                else project_root / "model_results" / model_name
             )
 
-        all_model_parameters = values.get("model_parameters", {})
-        if not isinstance(all_model_parameters, Mapping):
-            raise TypeError("model_parameters は辞書形式で指定してください")
-        if any(name in all_model_parameters for name in MODEL_NAMES):
-            model_parameters = all_model_parameters.get(str(model_name), {})
-        else:
-            model_parameters = all_model_parameters
-        if not isinstance(model_parameters, Mapping):
-            raise TypeError(
-                f"model_parameters.{model_name} は辞書形式で指定してください"
+        model_parameters = _select_model_mapping(
+            values.get("model_parameters", {}), model_name, "model_parameters"
+        )
+        raw_grid = values.get(
+            "hyperparameter_grid", values.get("hyperparameter_grids")
+        )
+        hyperparameter_grid = (
+            None
+            if raw_grid is None
+            else _select_model_mapping(
+                raw_grid, model_name, "hyperparameter_grid", allow_missing_model=True
             )
+        )
 
         return cls(
-            model_name=str(model_name),
+            model_name=model_name,
             input_path=_resolve_path(input_value, project_root),
             target_column=str(target_column),
             output_dir=output_dir,
             n_splits=int(values.get("n_splits", 5)),
+            inner_splits=int(values.get("inner_splits", 5)),
             random_state=int(values.get("random_state", 42)),
             encoding=str(values.get("encoding", "utf-8-sig")),
             model_parameters=dict(model_parameters),
+            hyperparameter_grid=(
+                None if hyperparameter_grid is None else dict(hyperparameter_grid)
+            ),
         )
 
 
 @dataclass
 class TrainingResult:
-    """Notebook から後続処理に利用できる学習結果。"""
+    """Notebookから後続処理に利用できるNested CV学習結果。"""
 
     config: TrainingConfig
     pipeline: Any
@@ -147,6 +178,28 @@ class TrainingResult:
     model_path: Path | None = None
     metrics_path: Path | None = None
     predictions_path: Path | None = None
+
+
+def _select_model_mapping(
+    value: Any,
+    model_name: str,
+    setting_name: str,
+    *,
+    allow_missing_model: bool = False,
+) -> Mapping[str, Any] | None:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{setting_name} は辞書形式で指定してください")
+    if any(name in value for name in MODEL_NAMES):
+        selected = value.get(model_name)
+        if selected is None and allow_missing_model:
+            return None
+        if selected is None:
+            selected = {}
+    else:
+        selected = value
+    if not isinstance(selected, Mapping):
+        raise TypeError(f"{setting_name}.{model_name} は辞書形式で指定してください")
+    return selected
 
 
 def _resolve_path(value: Any, base_dir: Path) -> Path:
@@ -169,9 +222,7 @@ def _read_config_mapping(config_path: Path | str) -> tuple[dict[str, Any], Path]
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
-        raise ValueError(
-            f"設定ファイルのYAMLが不正です: {path}: {exc}"
-        ) from exc
+        raise ValueError(f"設定ファイルのYAMLが不正です: {path}: {exc}") from exc
     if not isinstance(raw, dict):
         raise ValueError("設定ファイルの最上位はYAMLのマッピング形式にしてください")
     return raw, path
@@ -182,11 +233,7 @@ def load_training_config(
     *,
     overrides: Mapping[str, Any] | None = None,
 ) -> TrainingConfig:
-    """YAML 設定を読み込み、任意の値で上書きして学習条件を返す。
-
-    相対パスは設定ファイルを基準に解決する。``overrides`` は Notebook や
-    CLI など呼び出し元を限定しない汎用的な設定上書きとして扱う。
-    """
+    """YAML設定を読み込み、任意の値で上書きして学習条件を返す。"""
     values, path = _read_config_mapping(config_path)
     if overrides:
         values.update(overrides)
@@ -202,7 +249,7 @@ def _import_dependencies() -> dict[str, Any]:
         from sklearn.impute import SimpleImputer
         from sklearn.linear_model import Ridge
         from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-        from sklearn.model_selection import KFold
+        from sklearn.model_selection import GridSearchCV, KFold
         from sklearn.pipeline import Pipeline
         from sklearn.preprocessing import StandardScaler
         from sklearn.svm import SVR
@@ -222,6 +269,7 @@ def _import_dependencies() -> dict[str, Any]:
         "mean_absolute_error": mean_absolute_error,
         "mean_squared_error": mean_squared_error,
         "r2_score": r2_score,
+        "GridSearchCV": GridSearchCV,
         "KFold": KFold,
         "Pipeline": Pipeline,
         "StandardScaler": StandardScaler,
@@ -258,7 +306,7 @@ def _build_pipeline(
             "reg_alpha": 0.0,
             "reg_lambda": 1.0,
             "random_state": random_state,
-            "n_jobs": -1,
+            "n_jobs": 1,
         }
         parameters.update(overrides)
         estimator = XGBRegressor(**parameters)
@@ -285,7 +333,7 @@ def _build_pipeline(
             "max_features": 1.0,
             "min_samples_leaf": 1,
             "random_state": random_state,
-            "n_jobs": -1,
+            "n_jobs": 1,
         }
         parameters.update(overrides)
         estimator = deps["RandomForestRegressor"](**parameters)
@@ -304,12 +352,105 @@ def _build_pipeline(
     else:
         raise ValueError(f"未対応のモデルです: {model_name}")
 
-    pipeline = deps["Pipeline"](steps)
-    return pipeline, estimator, package_version
+    return deps["Pipeline"](steps), estimator, package_version
+
+
+def _default_hyperparameter_grid(model_name: str) -> dict[str, list[Any]]:
+    if model_name == "xgboost":
+        return {
+            "model__n_estimators": [200, 400, 600, 800],
+            "model__learning_rate": [0.01, 0.03, 0.05, 0.1],
+            "model__max_depth": [2, 3, 4, 5, 6],
+            "model__min_child_weight": [1, 3, 5, 10],
+            "model__subsample": [0.7, 0.85, 1.0],
+            "model__colsample_bytree": [0.7, 0.85, 1.0],
+            "model__reg_alpha": [0.0, 0.01, 0.1, 1.0],
+            "model__reg_lambda": [0.1, 1.0, 5.0, 10.0],
+        }
+    if model_name == "svr":
+        return {
+            "model__C": [0.1, 1.0, 10.0, 100.0, 1000.0],
+            "model__gamma": ["scale", "auto", 0.001, 0.01, 0.1, 1.0],
+            "model__epsilon": [0.01, 0.05, 0.1, 0.2, 0.5],
+        }
+    if model_name == "random_forest":
+        return {
+            "model__n_estimators": [200, 500, 800],
+            "model__max_depth": [None, 5, 10, 20],
+            "model__max_features": ["sqrt", 0.5, 1.0],
+            "model__min_samples_split": [2, 5, 10],
+            "model__min_samples_leaf": [1, 2, 4],
+            "model__bootstrap": [True, False],
+        }
+    if model_name == "ridge":
+        return {
+            "model__alpha": [
+                0.0001,
+                0.0003,
+                0.001,
+                0.003,
+                0.01,
+                0.03,
+                0.1,
+                0.3,
+                1.0,
+                3.0,
+                10.0,
+                30.0,
+                100.0,
+                300.0,
+                1000.0,
+                3000.0,
+                10000.0,
+            ]
+        }
+    raise ValueError(f"未対応のモデルです: {model_name}")
+
+
+def _normalize_hyperparameter_grid(
+    grid: Mapping[str, Sequence[Any]],
+) -> dict[str, list[Any]]:
+    return {
+        (str(name) if "__" in str(name) else f"model__{name}"): list(candidates)
+        for name, candidates in grid.items()
+    }
+
+
+def _build_hyperparameter_search(
+    model_name: str,
+    pipeline: Any,
+    deps: Mapping[str, Any],
+    inner_splits: int,
+    random_state: int,
+    hyperparameter_grid: Mapping[str, Sequence[Any]] | None = None,
+) -> tuple[Any, str, dict[str, Any]]:
+    """外側学習データ内で使用する内側K-Fold探索器を作る。"""
+    inner_cv = deps["KFold"](
+        n_splits=inner_splits,
+        shuffle=True,
+        random_state=random_state,
+    )
+    parameters = (
+        _default_hyperparameter_grid(model_name)
+        if hyperparameter_grid is None
+        else _normalize_hyperparameter_grid(hyperparameter_grid)
+    )
+    search = deps["GridSearchCV"](
+        estimator=pipeline,
+        param_grid=parameters,
+        scoring="neg_mean_absolute_error",
+        cv=inner_cv,
+        n_jobs=-1,
+        refit=True,
+        error_score="raise",
+    )
+    return search, "GridSearchCV", parameters
 
 
 def _resolve_column(columns: Sequence[str], requested: str) -> str:
-    matches = [column for column in columns if column.casefold() == requested.casefold()]
+    matches = [
+        column for column in columns if column.casefold() == requested.casefold()
+    ]
     if not matches:
         raise ValueError(f"列 '{requested}' が入力CSVに見つかりません")
     if len(matches) > 1:
@@ -416,8 +557,27 @@ def _json_value(value: Any) -> Any:
     return str(value)
 
 
+def _search_candidate_results(search: Any) -> list[dict[str, Any]]:
+    cv_results = search.cv_results_
+    candidates = [
+        {
+            "rank": int(rank),
+            "mean_cv_mae": float(-mean_score),
+            "std_cv_mae": float(std_score),
+            "parameters": _json_value(parameters),
+        }
+        for rank, mean_score, std_score, parameters in zip(
+            cv_results["rank_test_score"],
+            cv_results["mean_test_score"],
+            cv_results["std_test_score"],
+            cv_results["params"],
+        )
+    ]
+    candidates.sort(key=lambda item: item["rank"])
+    return candidates
+
+
 def _ridge_feature_contributions(pipeline: Any) -> dict[str, Any]:
-    """標準化空間と元スケールのRidge係数を返す。"""
     ridge_model = pipeline.named_steps["model"]
     scaler = pipeline.named_steps["scaler"]
     standardized_coefficients = [float(value) for value in ridge_model.coef_]
@@ -432,7 +592,6 @@ def _ridge_feature_contributions(pipeline: Any) -> dict[str, Any]:
             standardized_coefficients, scaler.mean_, scaler.scale_
         )
     )
-
     details = [
         {
             "feature": feature,
@@ -442,9 +601,7 @@ def _ridge_feature_contributions(pipeline: Any) -> dict[str, Any]:
             "direction": (
                 "positive"
                 if coefficient > 0
-                else "negative"
-                if coefficient < 0
-                else "zero"
+                else "negative" if coefficient < 0 else "zero"
             ),
         }
         for feature, coefficient, original_coefficient in zip(
@@ -453,7 +610,9 @@ def _ridge_feature_contributions(pipeline: Any) -> dict[str, Any]:
             original_scale_coefficients,
         )
     ]
-    details.sort(key=lambda item: item["absolute_standardized_coefficient"], reverse=True)
+    details.sort(
+        key=lambda item: item["absolute_standardized_coefficient"], reverse=True
+    )
     for rank, detail in enumerate(details, start=1):
         detail["absolute_contribution_rank"] = rank
 
@@ -515,7 +674,6 @@ def _build_cv_predictions(
     residual_column = _unused_column_name(
         list(output.columns), f"residual_{target_column}"
     )
-
     output.insert(0, source_row_column, output.index + 2)
     output[fold_column] = fold_assignments.loc[used_indices].astype(int)
     output[prediction_column] = out_of_fold_predictions.loc[used_indices]
@@ -531,11 +689,7 @@ def train_model(
     *,
     save_artifacts: bool = True,
 ) -> TrainingResult:
-    """設定に従って交差検証と全データでの学習を行う。
-
-    CLI 固有の引数解析や表示を含まないため、Notebook からそのまま利用できる。
-    ``save_artifacts=False`` を指定するとファイルを書き出さず、結果だけを返す。
-    """
+    """Nested CVで評価し、全データで再探索した最終モデルを返す。"""
     if not isinstance(config, TrainingConfig):
         config = TrainingConfig.from_mapping(config)
 
@@ -546,16 +700,17 @@ def train_model(
         config.encoding,
         deps,
     )
-
     X = data["X"]
     y = data["y"]
     if len(X) < config.n_splits * 2:
         raise ValueError(
-            "各検証foldでR2を計算するには、データ行数が n_splits の"
-            "2倍以上必要です"
+            "各検証foldでR2を計算するには、データ行数がn_splitsの2倍以上必要です"
         )
+    smallest_outer_train_size = len(X) - math.ceil(len(X) / config.n_splits)
+    if smallest_outer_train_size < config.inner_splits:
+        raise ValueError("外側foldの学習行数よりinner_splitsが大きいため探索できません")
 
-    cv = deps["KFold"](
+    outer_cv = deps["KFold"](
         n_splits=config.n_splits,
         shuffle=True,
         random_state=config.random_state,
@@ -564,23 +719,36 @@ def train_model(
     out_of_fold_predictions = pd.Series(index=X.index, dtype="float64")
     fold_assignments = pd.Series(index=X.index, dtype="Int64")
     fold_results: list[dict[str, Any]] = []
+    search_strategy = ""
+    search_space: dict[str, Any] = {}
 
     for fold_number, (train_positions, validation_positions) in enumerate(
-        cv.split(X), start=1
+        outer_cv.split(X), start=1
     ):
         X_train = X.iloc[train_positions]
         X_validation = X.iloc[validation_positions]
         y_train = y.iloc[train_positions]
         y_validation = y.iloc[validation_positions]
+
         fold_pipeline, _, _ = _build_pipeline(
             config.model_name,
             deps,
             config.random_state,
             config.model_parameters,
         )
-        fold_pipeline.fit(X_train, y_train)
-        train_predictions = fold_pipeline.predict(X_train)
-        validation_predictions = fold_pipeline.predict(X_validation)
+        fold_search, search_strategy, search_space = _build_hyperparameter_search(
+            model_name=config.model_name,
+            pipeline=fold_pipeline,
+            deps=deps,
+            inner_splits=config.inner_splits,
+            random_state=config.random_state + fold_number,
+            hyperparameter_grid=config.hyperparameter_grid,
+        )
+        # 探索に使うのは外側foldの学習データだけ。
+        fold_search.fit(X_train, y_train)
+        best_fold_pipeline = fold_search.best_estimator_
+        train_predictions = best_fold_pipeline.predict(X_train)
+        validation_predictions = best_fold_pipeline.predict(X_validation)
         out_of_fold_predictions.loc[X_validation.index] = validation_predictions
         fold_assignments.loc[X_validation.index] = fold_number
         fold_results.append(
@@ -592,30 +760,40 @@ def train_model(
                 "validation_metrics": _metric_values(
                     y_validation, validation_predictions, deps
                 ),
+                "inner_cv_best_mae": float(-fold_search.best_score_),
+                "best_parameters": _json_value(fold_search.best_params_),
             }
         )
 
     train_summary = _summarize_fold_metrics(fold_results, "train_metrics")
-    validation_summary = _summarize_fold_metrics(
-        fold_results, "validation_metrics"
-    )
+    validation_summary = _summarize_fold_metrics(fold_results, "validation_metrics")
 
-    # 保存・予測用モデルは交差検証後に全データで改めて学習する。
-    pipeline, estimator, package_version = _build_pipeline(
+    # 保存・予測用モデルはNested CV後に全データで改めて探索する。
+    final_base_pipeline, _, package_version = _build_pipeline(
         config.model_name,
         deps,
         config.random_state,
         config.model_parameters,
     )
-    pipeline.fit(X, y)
+    final_search, search_strategy, search_space = _build_hyperparameter_search(
+        model_name=config.model_name,
+        pipeline=final_base_pipeline,
+        deps=deps,
+        inner_splits=config.inner_splits,
+        random_state=config.random_state,
+        hyperparameter_grid=config.hyperparameter_grid,
+    )
+    final_search.fit(X, y)
+    pipeline = final_search.best_estimator_
+    estimator = pipeline.named_steps["model"]
 
     metrics = {
         "model": config.model_name,
         "target_column": data["target_column"],
         "metrics_note": (
-            f"train_metricsは{config.n_splits}foldの学習指標平均、"
-            "test_metricsは各foldの検証指標平均です。標準偏差とfold別結果は"
-            "cross_validationにあります。"
+            f"train_metricsは外側{config.n_splits}foldの学習指標平均、"
+            "test_metricsは外側foldの検証指標平均です。各外側foldの学習データ"
+            "内だけでハイパーパラメータ探索を行っています。"
         ),
         "feature_count": len(FEATURE_COLUMNS),
         "features": list(FEATURE_COLUMNS),
@@ -630,20 +808,34 @@ def train_model(
             ],
         },
         "cross_validation": {
-            "method": "KFold",
+            "method": "NestedKFold",
             "n_splits": config.n_splits,
+            "inner_splits": config.inner_splits,
             "shuffle": True,
             "random_state": config.random_state,
             "train_metrics_summary": train_summary,
             "validation_metrics_summary": validation_summary,
             "fold_metrics": fold_results,
         },
-        # 従来との互換性のため、平均値を同じキーにも保存する。
         "train_metrics": train_summary["mean"],
         "test_metrics": validation_summary["mean"],
         "train_metrics_std": train_summary["std"],
         "test_metrics_std": validation_summary["std"],
-        "saved_model_training": "full_dataset_after_cross_validation",
+        "hyperparameter_search": {
+            "strategy": search_strategy,
+            "scoring": "neg_mean_absolute_error",
+            "candidate_count": math.prod(
+                len(values) for values in search_space.values()
+            ),
+            "search_space": _json_value(search_space),
+            "final_best_parameters": _json_value(final_search.best_params_),
+            "final_inner_cv_best_mae": float(-final_search.best_score_),
+            "final_candidate_results": _search_candidate_results(final_search),
+        },
+        "saved_model_training": (
+            "full_dataset_after_nested_cross_validation_and_final_hyperparameter_search"
+        ),
+        "base_model_parameters": _json_value(config.model_parameters),
         "model_parameters": _json_value(estimator.get_params(deep=False)),
         "package_versions": {
             "model_package": package_version,
@@ -652,9 +844,7 @@ def train_model(
         },
     }
     if config.model_name == "ridge":
-        metrics["ridge_feature_contributions"] = _ridge_feature_contributions(
-            pipeline
-        )
+        metrics["ridge_feature_contributions"] = _ridge_feature_contributions(pipeline)
 
     cv_predictions = _build_cv_predictions(
         data["frame"],

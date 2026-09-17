@@ -4,19 +4,19 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import Any, Sequence
 
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]  # parents[1] = parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 DEFAULT_CONFIG = PROJECT_ROOT / "config" / "model_training.yaml"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from pka_prediction.model_training_common import (  # noqa: E402
-    MODEL_NAMES,
+from pka_prediction.model_training_common import (
+    MODEL_NAMES,  # noqa: E402
     TrainingResult,
     load_training_config,
     train_model,
@@ -26,7 +26,7 @@ from pka_prediction.model_training_common import (  # noqa: E402
 def build_parser() -> argparse.ArgumentParser:
     """コマンドライン引数を定義する。"""
     parser = argparse.ArgumentParser(
-        description="設定ファイルを使用して回帰モデルを学習します。"
+        description="設定ファイルを使用してNested CVで回帰モデルを学習します。"
     )
     parser.add_argument(
         "-c",
@@ -61,7 +61,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--n-splits",
         type=int,
-        help="K-Foldの分割数（設定ファイルの値を上書き）",
+        help="外側K-Foldの分割数（設定ファイルの値を上書き）",
+    )
+    parser.add_argument(
+        "--inner-splits",
+        type=int,
+        help="内側K-Foldの分割数（設定ファイルの値を上書き）",
     )
     parser.add_argument(
         "--random-state",
@@ -94,6 +99,8 @@ def _build_overrides(args: argparse.Namespace) -> dict[str, Any]:
         overrides["output_dir"] = str(args.output_dir.resolve())
     if args.n_splits is not None:
         overrides["n_splits"] = args.n_splits
+    if args.inner_splits is not None:
+        overrides["inner_splits"] = args.inner_splits
     if args.random_state is not None:
         overrides["random_state"] = args.random_state
     if args.encoding is not None:
@@ -107,10 +114,21 @@ def _print_training_result(result: TrainingResult) -> None:
         print(f"モデル: {result.model_path}")
         print(f"評価指標: {result.metrics_path}")
         print(f"予測値: {result.predictions_path}")
+    else:
+        print("成果物: 保存していません")
 
     metrics = result.metrics
     print(
-        f"{result.config.n_splits}-Fold CV評価: "
+        "最良パラメータ: "
+        + json.dumps(
+            metrics["hyperparameter_search"]["final_best_parameters"],
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    print(
+        f"Nested {result.config.n_splits}-Fold CV評価 "
+        f"(inner={result.config.inner_splits}): "
         f"R2={metrics['test_metrics']['r2']:.6f}, "
         f"RMSE={metrics['test_metrics']['rmse']:.6f}, "
         f"MAE={metrics['test_metrics']['mae']:.6f} "
