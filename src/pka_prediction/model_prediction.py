@@ -23,7 +23,7 @@ FEATURE_COLUMNS = [
 
 
 @dataclass(frozen=True)
-class PredictConfig:
+class PredictionConfig:
     input_path: Path | str
     output_path: Path | str
     model_path: Path | str
@@ -36,8 +36,8 @@ class PredictConfig:
 
 
 @dataclass
-class PredictResult:
-    config: PredictConfig
+class PredictionResult:
+    config: PredictionConfig
     dataframe: Any
 
 
@@ -53,7 +53,7 @@ def _import_dependencies() -> dict[str, Any]:
     return {"pd": pd, "joblib": joblib}
 
 
-def predict_pka(config: PredictConfig) -> PredictResult:
+def predict_pka(config: PredictionConfig) -> PredictionResult:
     dependencies = _import_dependencies()
     pd = dependencies["pd"]
     joblib = dependencies["joblib"]
@@ -77,4 +77,4 @@ def predict_pka(config: PredictConfig) -> PredictResult:
     config.output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(config.output_path, index=False, encoding=config.output_encoding)
 
-    return PredictResult(config=config, dataframe=df)
+    return PredictionResult(config=config, dataframe=df)

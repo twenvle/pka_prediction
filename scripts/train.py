@@ -15,8 +15,8 @@ DEFAULT_CONFIG = PROJECT_ROOT / "config" / "model_training.yaml"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from pka_prediction.model_training_common import (
-    MODEL_NAMES,  # noqa: E402
+from pka_prediction.model_training import MODEL_NAMES  # noqa: E402
+from pka_prediction.model_training import (
     TrainingResult,
     load_training_config,
     train_model,

@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-
 # この版で使用する量子化学・分子記述子。
 FEATURE_COLUMNS = (
     "polar",
@@ -84,9 +83,7 @@ class TrainingConfig:
                         f"hyperparameter_grid.{name} は候補値のリストにしてください"
                     )
                 if not candidates:
-                    raise ValueError(
-                        f"hyperparameter_grid.{name} に候補値がありません"
-                    )
+                    raise ValueError(f"hyperparameter_grid.{name} に候補値がありません")
                 normalized_grid[str(name)] = list(candidates)
             if not normalized_grid:
                 raise ValueError("hyperparameter_grid を空にすることはできません")
@@ -140,9 +137,7 @@ class TrainingConfig:
         model_parameters = _select_model_mapping(
             values.get("model_parameters", {}), model_name, "model_parameters"
         )
-        raw_grid = values.get(
-            "hyperparameter_grid", values.get("hyperparameter_grids")
-        )
+        raw_grid = values.get("hyperparameter_grid", values.get("hyperparameter_grids"))
         hyperparameter_grid = (
             None
             if raw_grid is None
