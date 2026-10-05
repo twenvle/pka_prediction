@@ -1,0 +1,6 @@
+﻿name,smiles,pka_value,source_index,error_type,error_message
+54,C[Si](C)(C)c1cccc(C(=O)O)c1,4.1645,54,DescriptorExtractionError,Log file was not found for 54: ../data/dftfile/labeled/sub_54.log
+55,Cc1c(F)c(F)c(C(=O)O)c(F)c1F,2.0,55,DescriptorExtractionError,Log file was not found for 55: ../data/dftfile/labeled/sub_55.log
+68,Cc1ccc(C(=O)O)c(O)c1,3.1630000000000003,68,DescriptorExtractionError,Log file was not found for 68: ../data/dftfile/labeled/sub_68.log
+97,Nc1ccc(C(=O)O)cc1,4.832833333333333,97,DescriptorExtractionError,Natural Population Analysis was not found.
+153,O=C(O)c1ccc([N+](=O)[O-])cc1,3.2511666666666668,153,DescriptorExtractionError,Log file was not found for 153: ../data/dftfile/labeled/sub_153.log

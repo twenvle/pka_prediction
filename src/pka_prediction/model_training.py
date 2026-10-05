@@ -12,22 +12,24 @@ from typing import Any, Mapping, Sequence
 
 # この版で使用する量子化学・分子記述子。
 FEATURE_COLUMNS = (
+    "sasa",
     "polar",
-    "h_nbo_charge",
-    "o_nbo_charge",
-    "total_nbo_charge",
-    "dipole_moment_debye",
+    "oh_distance",
+    "co_distance",
+    "co_double_distance",
+    "h_charge",
+    "o_single_charge",
+    "o_double_charge",
+    "cooh_charge",
+    "oh_bond",
+    "co_bond",
+    "co_double_bond",
     "homo_ev",
     "lumo_ev",
-    "gap_ev",
-    "MW",
-    "logP",
-    "HBA",
-    "HBD",
-    "rotatable_bonds",
-    "aromatic_rings",
-    "FractionCSP3",
-    "acid_group_count",
+    "dipole_moment_debye",
+    "logp",
+    "hbd",
+    "hba",
 )
 
 MODEL_NAMES = ("xgboost", "svr", "random_forest", "ridge")

@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-
 REQUIRED_COLUMNS = ("name", "smiles")
 
 # アルカリ金属、アルカリ土類金属、遷移金属、ランタノイド、
@@ -23,27 +22,9 @@ METAL_ATOMIC_NUMBERS = frozenset(
         19,
         20,
         31,
-        37,
-        38,
-        49,
-        50,
-        55,
-        56,
-        81,
-        82,
-        83,
-        84,
-        87,
-        88,
-        113,
-        114,
-        115,
-        116,
     }
     | set(range(21, 31))
-    | set(range(39, 49))
-    | set(range(57, 81))
-    | set(range(89, 113))
+    | set(range(37, 118))
 )
 
 EXCLUSION_REASONS = (
@@ -62,8 +43,10 @@ class PreprocessingConfig:
 
     input_path: Path | str
     output_path: Path | str
-    name_column: str = "name"
-    smiles_column: str = "smiles"
+    name_column: str = "unique_ID"
+    smiles_column: str = "SMILES"
+    pka_type: str | None = None
+    temp: int | None = None
     encoding: str = "utf-8-sig"
     output_encoding: str = "utf-8-sig"
     random_seed: int = 42
@@ -127,15 +110,22 @@ def _normalize_smiles(value: Any, pd: Any) -> str | None:
     return smiles or None
 
 
-def _contains_metal(mol: Any) -> bool:
-    return any(
-        atom.GetAtomicNum() in METAL_ATOMIC_NUMBERS for atom in mol.GetAtoms()
+def _benzoic_acid_derivatives(mol: Any, Chem: Any) -> bool:
+    mol = Chem.AddHs(mol)
+    benzoic_acid = Chem.MolFromSmarts(
+        "[c:5]1([CX3:1](=[OX1:2])[OX2:3][H:4])[c:6][c:7][c:8][c:9][c:10]1"
     )
+    return mol.HasSubstructMatch(benzoic_acid)
+
+
+def _contains_metal(mol: Any) -> bool:
+    return any(atom.GetAtomicNum() in METAL_ATOMIC_NUMBERS for atom in mol.GetAtoms())
 
 
 def _is_ionic(mol: Any) -> bool:
     """正味電荷0の双性イオンも含め、形式電荷を持つ分子をイオンとする。"""
-    return any(atom.GetFormalCharge() != 0 for atom in mol.GetAtoms())
+    total_charge = sum(atom.GetFormalCharge() for atom in mol.GetAtoms())
+    return total_charge != 0
 
 
 def _embedding_parameters(AllChem: Any, random_seed: int, use_random: bool) -> Any:
@@ -186,6 +176,8 @@ def _molecule_exclusion_reason(
         return "invalid_smiles"
     if any(atom.GetAtomicNum() == 0 for atom in mol.GetAtoms()):
         return "invalid_smiles"
+    if not _benzoic_acid_derivatives(mol, Chem):
+        return "not_benzoic_acid_derivative"
     if _contains_metal(mol):
         return "contains_metal"
     if _is_ionic(mol):
@@ -206,8 +198,10 @@ def _replace_blank_strings_with_missing(frame: Any, pd: Any) -> Any:
 def preprocess_dataframe(
     frame: Any,
     *,
-    name_column: str = "name",
+    name_column: str = "unique_ID",
     smiles_column: str = "smiles",
+    pka_type: str | None = None,
+    temp: int | None = None,
     random_seed: int = 42,
     dependencies: Mapping[str, Any] | None = None,
 ) -> tuple[Any, dict[str, int]]:
@@ -223,6 +217,31 @@ def preprocess_dataframe(
     actual_smiles_column = _resolve_column(list(frame.columns), smiles_column)
     if actual_name_column == actual_smiles_column:
         raise ValueError("name列とsmiles列は別の列にしてください")
+
+    if pka_type != None:
+        if "pka_type" not in frame.columns:
+            raise ValueError("指定されたpka_type列が入力CSVにありません")
+        frame = frame[frame["pka_type"] == pka_type]
+
+    if temp != None:
+        if "T" not in frame.columns:
+            raise ValueError("指定されたtemp列が入力CSVにありません")
+        frame = frame[frame["T"] == str(temp)]
+
+    pka_value_column = _resolve_column(list(frame.columns), "pka_value")
+    frame = frame.loc[
+        :, [actual_name_column, actual_smiles_column, pka_value_column]
+    ].rename(
+        columns={
+            actual_name_column: "name",
+            actual_smiles_column: "smiles",
+            pka_value_column: "pka_value",
+        }
+    )
+    actual_smiles_column = "smiles"
+
+    frame["pka_value"] = pd.to_numeric(frame["pka_value"], errors="coerce")
+    frame = frame.groupby("smiles", as_index=False)["pka_value"].mean()
 
     counts: Counter[str] = Counter({reason: 0 for reason in EXCLUSION_REASONS})
     kept_indices: list[Any] = []
@@ -257,10 +276,14 @@ def preprocess_csv(
     deps = _import_dependencies()
     pd = deps["pd"]
     frame = pd.read_csv(config.input_path, encoding=config.encoding)
+    pka_type = config.pka_type
+    temp = config.temp
     cleaned, exclusion_counts = preprocess_dataframe(
         frame,
         name_column=config.name_column,
         smiles_column=config.smiles_column,
+        pka_type=pka_type,
+        temp=temp,
         random_seed=config.random_seed,
         dependencies=deps,
     )
@@ -268,7 +291,8 @@ def preprocess_csv(
     config.output_path.parent.mkdir(parents=True, exist_ok=True)
     cleaned.to_csv(
         config.output_path,
-        index=False,
+        index=True,
+        index_label="name",
         encoding=config.output_encoding,
     )
     return PreprocessingResult(
