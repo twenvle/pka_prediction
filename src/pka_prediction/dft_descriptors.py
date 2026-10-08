@@ -18,6 +18,10 @@ CSVの保存フォルダーを基準とする。ディレクトリ設定の相�
 Config/CLIでは密度cubeとESP cubeのフォルダーをそれぞれ別に指定できる。
 
 30特徴量の定義/単位:
+  局所23特徴量(1-14,22-30)は芳香環直結の各中性COOHで求め、等重み平均する。
+  全分子7特徴量(15-21)は平均せず、脂肪族COOHも含む全分子から求める。
+  脂肪族COOHは局所平均の対象外だが、電子状態やSASA遮蔽等からは除去しない。
+  1酸点でも値が不足した局所特徴量は欠損とし、残りだけの平均は返さない。
   1-8  NPA電荷(e): 酸性H,OH側O,C=O側O,COOH炭素,ipso,
        ortho平均,meta平均,para。COOH炭素電荷は基全体の和ではない。
   9-12 Wiberg指数: O-H,C-O(H),C=O,aryl-C(COOH)。NAO行列から取得。
@@ -40,6 +44,7 @@ Config/CLIでは密度cubeとESP cubeのフォルダーをそれぞれ別に指�
  29-30 O-H/C=O伸縮振動(cm^-1): 全3N-6調和モードのうち、正の周波数で
        正規化した結合軸伸縮投影が最大のモードを割り当てる。
        結合独立の局所モード周波数ではなく、混成した正常モードの割当。
+       複数酸点が同じモードに割り当てられる場合もある。各酸点の割当値を平均する。
        frequency_scale既定1.0。顕著な虚振動は既定で行エラー。
        fchkに残った過去のHessianを使わないよう、最終logの周波数と照合する。
 
@@ -56,8 +61,11 @@ partial行もvalid CSVに含む。完全な30特徴量だけを採用するに�
 on_error='continue'は構造不適格・ファイル不一致等をinvalid CSVに分離し、
 'raise'では最初の失敗で停止してCSVを書き込まない。ID先頭ゼロ/文字列NA保持。
 
-酸点は中性COOHが1個のみでベンゼンに直結。複数COOH/カルボキシラート、
-不一致骨格、芳香族縮合基準環、ラジカル、同位体標識H、開殻は対象外。
+酸点は6員の全炭素芳香環に直結する中性COOHすべて。ナフタレン等の縮合環も対応。
+ortho/meta/paraは各基準環内だけの距離で定義し、縮合部を含む環外への接続位置を
+置換位置として数える。酸点数、全局所原子番号、各置換位置数はprovenanceに記録。
+芳香環直結カルボキシラート、不一致/曖昧な基準環、ラジカル、同位体標識H、
+開殻は対象外。脂肪族COOHしかない分子は対象酸点がないためエラー。
 SMILESは原子同定だけに使い、SMILES由来の電子記述子をDFT列に混ぜない。
 元素だけで原子順序を判断せず、座標由来の結合関係/H数をSMILESと照合する。
 logは正常終了した最後のジョブだけを使い、以前のジョブのNBO出力を流用しない。
@@ -68,7 +76,6 @@ https://theochem.mercer.edu/chm295/g09ur/u_cubegen.htm
 https://www.rdkit.org/docs/source/rdkit.Chem.rdDetermineBonds.html
 https://github.com/cclib/cclib/blob/master/cclib/parser/fchkparser.py
 """
-
 from __future__ import annotations
 
 import argparse
@@ -84,53 +91,25 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-__all__ = [
-    "DescriptorExtractionConfig",
-    "DescriptorExtractionResult",
-    "DescriptorExtractionError",
-    "DESCRIPTOR_COLUMNS",
-    "calculate_descriptors",
-    "extract_descriptors",
-]
+__all__ = ["DescriptorExtractionConfig", "DescriptorExtractionResult",
+           "DescriptorExtractionError", "DESCRIPTOR_COLUMNS",
+           "calculate_descriptors", "extract_descriptors"]
 
 DESCRIPTOR_COLUMNS = (
-    "npa_acidic_h",
-    "npa_hydroxyl_o",
-    "npa_carbonyl_o",
-    "npa_carboxyl_c",
-    "npa_ipso_c",
-    "npa_ortho_c_mean",
-    "npa_meta_c_mean",
-    "npa_para_c",
-    "wiberg_oh",
-    "wiberg_co_single",
-    "wiberg_co_double",
-    "wiberg_aryl_cooh",
-    "esp_max_acidic_h_hartree_per_e",
-    "esp_min_carbonyl_o_hartree_per_e",
-    "homo_ev",
-    "lumo_ev",
-    "homo_lumo_gap_ev",
-    "dipole_moment_debye",
-    "isotropic_polarizability_au",
-    "mpi_hartree_per_e",
-    "molecular_volume_angstrom3",
-    "cooh_local_sasa_angstrom2",
-    "cooh_buried_volume_percent",
-    "oh_bond_length_angstrom",
-    "co_double_bond_length_angstrom",
-    "co_single_bond_length_angstrom",
-    "aryl_cooh_bond_length_angstrom",
-    "benzene_cooh_plane_angle_deg",
-    "oh_stretch_frequency_cm1",
-    "co_double_stretch_frequency_cm1",
+    "npa_acidic_h", "npa_hydroxyl_o", "npa_carbonyl_o", "npa_carboxyl_c",
+    "npa_ipso_c", "npa_ortho_c_mean", "npa_meta_c_mean", "npa_para_c",
+    "wiberg_oh", "wiberg_co_single", "wiberg_co_double", "wiberg_aryl_cooh",
+    "esp_max_acidic_h_hartree_per_e", "esp_min_carbonyl_o_hartree_per_e",
+    "homo_ev", "lumo_ev", "homo_lumo_gap_ev", "dipole_moment_debye",
+    "isotropic_polarizability_au", "mpi_hartree_per_e",
+    "molecular_volume_angstrom3", "cooh_local_sasa_angstrom2",
+    "cooh_buried_volume_percent", "oh_bond_length_angstrom",
+    "co_double_bond_length_angstrom", "co_single_bond_length_angstrom",
+    "aryl_cooh_bond_length_angstrom", "benzene_cooh_plane_angle_deg",
+    "oh_stretch_frequency_cm1", "co_double_stretch_frequency_cm1",
 )
-METADATA_COLUMNS = (
-    "descriptor_status",
-    "missing_descriptors",
-    "descriptor_issues",
-    "descriptor_provenance",
-)
+METADATA_COLUMNS = ("descriptor_status", "missing_descriptors", "descriptor_issues",
+                    "descriptor_provenance")
 HARTREE_TO_EV = 27.211386245988
 DIPOLE_AU_TO_DEBYE = 2.541746473
 ACID_SMARTS = "[C;X3;+0:1](=[O;X1;+0:2])-[O;X2;H1;+0:3]"
@@ -200,32 +179,17 @@ class DescriptorExtractionConfig:
     imaginary_frequency_tolerance_cm1: float = 20.0
 
     def __post_init__(self) -> None:
-        if self.on_error not in _ERROR_POLICIES or self.missing_policy not in {
-            "nan",
-            "raise",
-        }:
-            raise ValueError(
-                "on_error must be continue/raise; missing_policy must be nan/raise."
-            )
+        if self.on_error not in _ERROR_POLICIES or self.missing_policy not in {"nan", "raise"}:
+            raise ValueError("on_error must be continue/raise; missing_policy must be nan/raise.")
         for encoding in (self.input_encoding, self.output_encoding, self.log_encoding):
             codecs.lookup(encoding)
-        columns = [
-            self.name_column,
-            self.smiles_column,
-            self.log_column,
-            self.fchk_column,
-            self.density_cube_column,
-            self.esp_cube_column,
-        ]
-        if any(not isinstance(c, str) or not c.strip() for c in columns) or len(
-            set(columns)
-        ) != len(columns):
+        columns = [self.name_column, self.smiles_column, self.log_column, self.fchk_column,
+                   self.density_cube_column, self.esp_cube_column]
+        if any(not isinstance(c, str) or not c.strip() for c in columns) or len(set(columns)) != len(columns):
             raise ValueError("Input column settings must be distinct nonempty strings.")
         for attribute in ("input_path", "output_path", "logdata_path"):
             object.__setattr__(self, attribute, Path(getattr(self, attribute)))
-        object.__setattr__(
-            self, "fchkdata_path", Path(self.fchkdata_path or self.logdata_path)
-        )
+        object.__setattr__(self, "fchkdata_path", Path(self.fchkdata_path or self.logdata_path))
         for attribute in ("density_cube_path", "esp_cube_path"):
             value = getattr(self, attribute)
             if value is not None:
@@ -236,15 +200,11 @@ class DescriptorExtractionConfig:
         object.__setattr__(self, "invalid_output_path", Path(invalid))
         if self.cubegen_path is not None:
             object.__setattr__(self, "cubegen_path", str(self.cubegen_path))
-        for first, second in (
-            (self.input_path, self.output_path),
-            (self.input_path, self.invalid_output_path),
-            (self.output_path, self.invalid_output_path),
-        ):
+        for first, second in ((self.input_path, self.output_path),
+                              (self.input_path, self.invalid_output_path),
+                              (self.output_path, self.invalid_output_path)):
             if _same_file(first, second):
-                raise ValueError(
-                    "Input, valid output and invalid output must be different files."
-                )
+                raise ValueError("Input, valid output and invalid output must be different files.")
         for output in (self.output_path, self.invalid_output_path):
             if _same_file(output, Path(__file__)):
                 raise ValueError("Output cannot overwrite this Python module.")
@@ -254,38 +214,21 @@ class DescriptorExtractionConfig:
             test_stem = self.file_stem_template.format(name="test")
         except (KeyError, ValueError, IndexError) as exc:
             raise ValueError("Invalid file_stem_template.") from exc
-        if (
-            not test_stem
-            or any(c in test_stem for c in "*?[]/\\:")
-            or test_stem in {".", ".."}
-        ):
+        if not test_stem or any(c in test_stem for c in '*?[]/\\:') or test_stem in {'.', '..'}:
             raise ValueError("file_stem_template must produce a plain filename stem.")
-        for attribute, minimum in (
-            ("cube_npts", 10),
-            ("cube_timeout_seconds", 1),
-            ("sasa_points_per_atom", 100),
-            ("buried_samples", 1000),
-        ):
+        for attribute, minimum in (("cube_npts", 10), ("cube_timeout_seconds", 1),
+                                   ("sasa_points_per_atom", 100), ("buried_samples", 1000)):
             value = getattr(self, attribute)
             if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
                 raise ValueError(f"{attribute} must be an integer >= {minimum}.")
         if self.cube_npts > 125:
             raise ValueError("cube_npts must be <=125 (scalar-grid memory limit).")
-        for attribute in (
-            "density_isovalue",
-            "esp_local_radius_angstrom",
-            "buried_radius_angstrom",
-            "geometry_tolerance_angstrom",
-            "connectivity_factor",
-            "frequency_scale",
-            "min_stretch_projection",
-        ):
+        for attribute in ("density_isovalue", "esp_local_radius_angstrom",
+                          "buried_radius_angstrom", "geometry_tolerance_angstrom",
+                          "connectivity_factor", "frequency_scale", "min_stretch_projection"):
             if _finite_scalar(getattr(self, attribute), attribute) <= 0:
                 raise ValueError(f"{attribute} must be positive.")
-        for attribute in (
-            "sasa_probe_radius_angstrom",
-            "imaginary_frequency_tolerance_cm1",
-        ):
+        for attribute in ("sasa_probe_radius_angstrom", "imaginary_frequency_tolerance_cm1"):
             if _finite_scalar(getattr(self, attribute), attribute) < 0:
                 raise ValueError(f"{attribute} must be nonnegative.")
         if not isinstance(self.require_minimum, bool):
@@ -323,9 +266,7 @@ class _BenzoicAcidSite:
 
     @property
     def carboxyl_atoms(self) -> frozenset[int]:
-        return frozenset(
-            (self.carboxyl_carbon, self.carbonyl_oxygen, self.hydroxyl_oxygen)
-        )
+        return frozenset((self.carboxyl_carbon, self.carbonyl_oxygen, self.hydroxyl_oxygen))
 
 
 @dataclass(frozen=True)
@@ -339,17 +280,12 @@ class _DftSite:
     ortho_carbons: tuple[int, ...]
     meta_carbons: tuple[int, ...]
     para_carbon: int
+    substituted_ring_carbons: tuple[int, ...] = ()
 
     @property
     def carboxyl_atoms(self) -> frozenset[int]:
-        return frozenset(
-            (
-                self.carboxyl_carbon,
-                self.carbonyl_oxygen,
-                self.hydroxyl_oxygen,
-                self.acidic_hydrogen,
-            )
-        )
+        return frozenset((self.carboxyl_carbon, self.carbonyl_oxygen,
+                          self.hydroxyl_oxygen, self.acidic_hydrogen))
 
 
 def _import_dependencies() -> dict[str, Any]:
@@ -359,9 +295,7 @@ def _import_dependencies() -> dict[str, Any]:
         from rdkit import Chem
         from rdkit.Chem import rdDetermineBonds
     except ImportError as exc:
-        raise RuntimeError(
-            "Install numpy, pandas and RDKit: python -m pip install numpy pandas rdkit"
-        ) from exc
+        raise RuntimeError("Install numpy, pandas and RDKit: python -m pip install numpy pandas rdkit") from exc
     return {"np": np, "pd": pd, "Chem": Chem, "rdDetermineBonds": rdDetermineBonds}
 
 
@@ -369,62 +303,44 @@ def _default_config() -> DescriptorExtractionConfig:
     return DescriptorExtractionConfig("__unused_input__.csv", "__unused_valid__.csv")
 
 
-def _prepare_geometry(
-    smiles: str,
-    fchk: Mapping[str, Any],
-    dependencies: Mapping[str, Any],
-    config: DescriptorExtractionConfig | None = None,
-) -> tuple[_DftSite, Any]:
+def _prepare_geometry(smiles: str, fchk: Mapping[str, Any], dependencies: Mapping[str, Any],
+                      config: DescriptorExtractionConfig | None = None) -> tuple[tuple[_DftSite, ...], Any]:
     """Match element/connectivity/H counts, never assume SMILES=fchk atom order."""
     config = config or _default_config()
     np, Chem = dependencies["np"], dependencies["Chem"]
     template = _parse_smiles(smiles, dependencies)
-    anchor = _find_benzoic_acid_site(template, dependencies)
+    anchors = _find_benzoic_acid_sites(template, dependencies)
     numbers = np.asarray(fchk["atomic_numbers"], dtype=int)
     coordinates = np.asarray(fchk["coordinates_angstrom"], dtype=float)
     if coordinates.shape != (len(numbers), 3) or not np.isfinite(coordinates).all():
         raise DescriptorExtractionError("Invalid fchk Cartesian coordinates.")
     if int(fchk["charge"]) != 0 or int(fchk["multiplicity"]) != 1:
-        raise DescriptorExtractionError(
-            "The DFT extractor requires a neutral singlet acid."
-        )
+        raise DescriptorExtractionError("The DFT extractor requires a neutral singlet acid.")
     if sum(atom.GetFormalCharge() for atom in template.GetAtoms()) != 0:
-        raise DescriptorExtractionError(
-            "SMILES must describe the same neutral acid state."
-        )
+        raise DescriptorExtractionError("SMILES must describe the same neutral acid state.")
     explicit_template = Chem.AddHs(template)
-    if sorted(numbers.tolist()) != sorted(
-        atom.GetAtomicNum() for atom in explicit_template.GetAtoms()
-    ):
-        raise DescriptorExtractionError(
-            "SMILES/fchk elemental composition or hydrogen count differs."
-        )
+    if sorted(numbers.tolist()) != sorted(atom.GetAtomicNum() for atom in explicit_template.GetAtoms()):
+        raise DescriptorExtractionError("SMILES/fchk elemental composition or hydrogen count differs.")
     xyz_lines = [str(len(numbers)), "fchk geometry"] + [
         f"{Chem.GetPeriodicTable().GetElementSymbol(int(z))} {x:.10f} {y:.10f} {zcoord:.10f}"
         for z, (x, y, zcoord) in zip(numbers, coordinates)
     ]
     geometry = Chem.MolFromXYZBlock("\n".join(xyz_lines) + "\n")
     if geometry is None:
-        raise DescriptorExtractionError(
-            "RDKit could not construct the fchk XYZ geometry."
-        )
+        raise DescriptorExtractionError("RDKit could not construct the fchk XYZ geometry.")
     try:
         dependencies["rdDetermineBonds"].DetermineConnectivity(
             geometry, useVdw=True, covFactor=config.connectivity_factor
         )
     except Exception as exc:
-        raise DescriptorExtractionError(
-            f"Could not determine geometric connectivity: {exc}"
-        ) from exc
+        raise DescriptorExtractionError(f"Could not determine geometric connectivity: {exc}") from exc
     heavy_indices = [i for i, z in enumerate(numbers) if z != 1]
     heavy_map = {original: new for new, original in enumerate(heavy_indices)}
     target = Chem.RWMol()
     h_neighbors: dict[int, tuple[int, ...]] = {}
     for original in heavy_indices:
         atom = geometry.GetAtomWithIdx(original)
-        hydrogens = tuple(
-            n.GetIdx() for n in atom.GetNeighbors() if n.GetAtomicNum() == 1
-        )
+        hydrogens = tuple(n.GetIdx() for n in atom.GetNeighbors() if n.GetAtomicNum() == 1)
         h_neighbors[original] = hydrogens
         new_atom = Chem.Atom(int(numbers[original]))
         new_atom.SetNoImplicit(True)
@@ -433,9 +349,7 @@ def _prepare_geometry(
     for hydrogen in (i for i, z in enumerate(numbers) if z == 1):
         neighbors = list(geometry.GetAtomWithIdx(hydrogen).GetNeighbors())
         if len(neighbors) != 1 or neighbors[0].GetAtomicNum() == 1:
-            raise DescriptorExtractionError(
-                "A geometric H does not have one heavy-atom neighbor."
-            )
+            raise DescriptorExtractionError("A geometric H does not have one heavy-atom neighbor.")
     for bond in geometry.GetBonds():
         left, right = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
         if left in heavy_map and right in heavy_map:
@@ -444,109 +358,82 @@ def _prepare_geometry(
     target.UpdatePropertyCache(strict=False)
     query = Chem.RWMol()
     for atom in template.GetAtoms():
-        query.AddAtom(
-            Chem.AtomFromSmarts(
-                f"[#{atom.GetAtomicNum()};H{atom.GetTotalNumHs(includeNeighbors=True)};D{atom.GetDegree()}]"
-            )
-        )
+        query.AddAtom(Chem.AtomFromSmarts(
+            f"[#{atom.GetAtomicNum()};H{atom.GetTotalNumHs(includeNeighbors=True)};D{atom.GetDegree()}]"
+        ))
     for bond in template.GetBonds():
-        query.AddBond(
-            bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), Chem.BondType.SINGLE
-        )
+        query.AddBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), Chem.BondType.SINGLE)
         query.ReplaceBond(query.GetNumBonds() - 1, Chem.BondFromSmarts("~"))
     query = query.GetMol()
     if target.GetNumBonds() != template.GetNumBonds():
         raise DescriptorExtractionError("SMILES/fchk heavy-atom connectivity differs.")
     matches = target.GetSubstructMatches(query, uniquify=False, maxMatches=4097)
     if not matches or len(matches) >= 4097:
-        raise DescriptorExtractionError(
-            "SMILES/fchk atom mapping failed or exceeds the ambiguity limit."
-        )
-    sites: set[_DftSite] = set()
+        raise DescriptorExtractionError("SMILES/fchk atom mapping failed or exceeds the ambiguity limit.")
+    site_sets: set[frozenset[_DftSite]] = set()
     for match in matches:
-
         def mapped(index: int) -> int:
             return heavy_indices[match[index]]
-
-        hydroxyl = mapped(anchor.hydroxyl_oxygen)
-        if len(h_neighbors[hydroxyl]) != 1:
-            continue
-        sites.add(
-            _DftSite(
-                mapped(anchor.carboxyl_carbon),
-                mapped(anchor.carbonyl_oxygen),
-                hydroxyl,
-                h_neighbors[hydroxyl][0],
-                mapped(anchor.ipso_carbon),
+        mapped_sites: set[_DftSite] = set()
+        for anchor in anchors:
+            hydroxyl = mapped(anchor.hydroxyl_oxygen)
+            if len(h_neighbors[hydroxyl]) != 1:
+                raise DescriptorExtractionError("An aromatic COOH lacks one mapped acidic H.")
+            ring_set = frozenset(anchor.ring_atoms)
+            substituted = tuple(sorted(mapped(i) for i in anchor.ring_atoms if any(
+                neighbor.GetAtomicNum() > 1 and neighbor.GetIdx() not in ring_set
+                and neighbor.GetIdx() != anchor.carboxyl_carbon
+                for neighbor in template.GetAtomWithIdx(i).GetNeighbors()
+            )))
+            mapped_sites.add(_DftSite(
+                mapped(anchor.carboxyl_carbon), mapped(anchor.carbonyl_oxygen), hydroxyl,
+                h_neighbors[hydroxyl][0], mapped(anchor.ipso_carbon),
                 tuple(sorted(mapped(i) for i in anchor.ring_atoms)),
                 tuple(sorted(mapped(i) for i in anchor.ortho_carbons)),
-                tuple(sorted(mapped(i) for i in anchor.meta_carbons)),
-                mapped(anchor.para_carbon),
-            )
-        )
-    if len(sites) != 1:
-        raise DescriptorExtractionError(
-            "The DFT acid/local atom mapping is not unique."
-        )
-    return next(iter(sites)), coordinates
+                tuple(sorted(mapped(i) for i in anchor.meta_carbons)), mapped(anchor.para_carbon),
+                substituted,
+            ))
+        if len(mapped_sites) != len(anchors) or len({s.carboxyl_carbon for s in mapped_sites}) != len(anchors):
+            raise DescriptorExtractionError("The complete aromatic COOH mapping lost or duplicated an acid site.")
+        site_sets.add(frozenset(mapped_sites))
+    if len(site_sets) != 1:
+        raise DescriptorExtractionError("The complete set of DFT acid/local atom mappings is not unique.")
+    sites = tuple(sorted(next(iter(site_sets)), key=lambda site: site.carboxyl_carbon))
+    return sites, coordinates
 
 
 def _pairwise_distances(coordinates: Any, np: Any) -> Any:
     return np.linalg.norm(coordinates[:, None, :] - coordinates[None, :, :], axis=2)
 
 
-def _validate_log_fchk(
-    job_text: str,
-    fchk: Mapping[str, Any],
-    dependencies: Mapping[str, Any],
-    config: DescriptorExtractionConfig,
-) -> Any:
+def _validate_log_fchk(job_text: str, fchk: Mapping[str, Any], dependencies: Mapping[str, Any],
+                       config: DescriptorExtractionConfig) -> Any:
     np = dependencies["np"]
     orientation = last_cartesian_orientation(job_text)
     if not np.array_equal(orientation["atomic_numbers"], fchk["atomic_numbers"]):
         raise DescriptorExtractionError("Log and fchk atom numbers/order differ.")
     log_coordinates = np.asarray(orientation["coordinates_angstrom"], dtype=float)
-    difference = np.max(
-        np.abs(
-            _pairwise_distances(log_coordinates, np)
-            - _pairwise_distances(np.asarray(fchk["coordinates_angstrom"]), np)
-        )
-    )
+    difference = np.max(np.abs(_pairwise_distances(log_coordinates, np) -
+                               _pairwise_distances(np.asarray(fchk["coordinates_angstrom"]), np)))
     if difference > config.geometry_tolerance_angstrom:
-        raise DescriptorExtractionError(
-            "Log and fchk describe different geometries or atom orders."
-        )
+        raise DescriptorExtractionError("Log and fchk describe different geometries or atom orders.")
     states = re.findall(r"Charge\s*=\s*(-?\d+)\s+Multiplicity\s*=\s*(\d+)", job_text)
-    if states and tuple(map(int, states[-1])) != (
-        int(fchk["charge"]),
-        int(fchk["multiplicity"]),
-    ):
+    if states and tuple(map(int, states[-1])) != (int(fchk["charge"]), int(fchk["multiplicity"])):
         raise DescriptorExtractionError("Log and fchk charge/multiplicity differ.")
     energy, method = _scf_energy(job_text)
     if method.startswith(("U", "RO")):
-        raise DescriptorExtractionError(
-            "Unrestricted/open-shell calculations are outside the closed-shell acid scope."
-        )
+        raise DescriptorExtractionError("Unrestricted/open-shell calculations are outside the closed-shell acid scope.")
     beta = fchk.get("beta_orbital_energies_hartree")
     alpha = fchk.get("alpha_orbital_energies_hartree")
-    if (
-        beta is not None
-        and alpha is not None
-        and (
-            np.asarray(beta).shape != np.asarray(alpha).shape
-            or not np.allclose(beta, alpha, rtol=0, atol=1e-6)
-        )
+    if beta is not None and alpha is not None and (
+        np.asarray(beta).shape != np.asarray(alpha).shape or not np.allclose(beta, alpha, rtol=0, atol=1e-6)
     ):
-        raise DescriptorExtractionError(
-            "A broken-symmetry or inconsistent alpha/beta checkpoint is unsupported."
-        )
+        raise DescriptorExtractionError("A broken-symmetry or inconsistent alpha/beta checkpoint is unsupported.")
     checkpoint_energy = fchk.get("total_energy_hartree")
     if checkpoint_energy is None:
         checkpoint_energy = fchk.get("fields", {}).get("SCF Energy")
     if checkpoint_energy is not None and abs(energy - float(checkpoint_energy)) > 1e-5:
-        raise DescriptorExtractionError(
-            "Log and fchk SCF energies differ; file pairing is unsafe."
-        )
+        raise DescriptorExtractionError("Log and fchk SCF energies differ; file pairing is unsafe.")
     return log_coordinates
 
 
@@ -555,70 +442,43 @@ def _scf_energy(text: str) -> tuple[float, str]:
     if not matches:
         raise ValueError("No final SCF energy was found.")
     method, energy = matches[-1]
-    return (
-        _finite_scalar(energy.replace("D", "E").replace("d", "e"), "SCF energy"),
-        method.upper(),
-    )
+    return _finite_scalar(energy.replace("D", "E").replace("d", "e"), "SCF energy"), method.upper()
 
 
 def _geometry_features(site: _DftSite, coordinates: Any, np: Any) -> dict[str, float]:
     def distance(left: int, right: int) -> float:
         return float(np.linalg.norm(coordinates[left] - coordinates[right]))
-
     ring_points = coordinates[list(site.ring_atoms)]
     _, singular_values, vectors = np.linalg.svd(ring_points - ring_points.mean(axis=0))
     if singular_values[1] < 1e-8:
         raise ValueError("The aromatic-ring plane is degenerate.")
     ring_normal = vectors[-1]
-    acid_normal = np.cross(
-        coordinates[site.carbonyl_oxygen] - coordinates[site.carboxyl_carbon],
-        coordinates[site.hydroxyl_oxygen] - coordinates[site.carboxyl_carbon],
-    )
+    acid_normal = np.cross(coordinates[site.carbonyl_oxygen] - coordinates[site.carboxyl_carbon],
+                           coordinates[site.hydroxyl_oxygen] - coordinates[site.carboxyl_carbon])
     acid_norm = np.linalg.norm(acid_normal)
     if acid_norm < 1e-8:
         raise ValueError("The COOH plane is degenerate.")
-    angle = math.degrees(
-        math.acos(
-            float(np.clip(abs(np.dot(ring_normal, acid_normal / acid_norm)), 0, 1))
-        )
-    )
+    angle = math.degrees(math.acos(float(np.clip(abs(np.dot(ring_normal, acid_normal / acid_norm)), 0, 1))))
     return {
         "oh_bond_length_angstrom": distance(site.hydroxyl_oxygen, site.acidic_hydrogen),
-        "co_double_bond_length_angstrom": distance(
-            site.carboxyl_carbon, site.carbonyl_oxygen
-        ),
-        "co_single_bond_length_angstrom": distance(
-            site.carboxyl_carbon, site.hydroxyl_oxygen
-        ),
-        "aryl_cooh_bond_length_angstrom": distance(
-            site.ipso_carbon, site.carboxyl_carbon
-        ),
+        "co_double_bond_length_angstrom": distance(site.carboxyl_carbon, site.carbonyl_oxygen),
+        "co_single_bond_length_angstrom": distance(site.carboxyl_carbon, site.hydroxyl_oxygen),
+        "aryl_cooh_bond_length_angstrom": distance(site.ipso_carbon, site.carboxyl_carbon),
         "benzene_cooh_plane_angle_deg": angle,
     }
 
 
 def _vdw_radii(numbers: Any, dependencies: Mapping[str, Any]) -> Any:
-    radii = dependencies["np"].array(
-        [
-            dependencies["Chem"].GetPeriodicTable().GetRvdw(int(number))
-            for number in numbers
-        ],
-        dtype=float,
-    )
+    radii = dependencies["np"].array([
+        dependencies["Chem"].GetPeriodicTable().GetRvdw(int(number)) for number in numbers
+    ], dtype=float)
     if not dependencies["np"].isfinite(radii).all() or (radii <= 0).any():
-        raise ValueError(
-            "A positive RDKit van der Waals radius is required for every atom."
-        )
+        raise ValueError("A positive RDKit van der Waals radius is required for every atom.")
     return radii
 
 
-def _sasa_features(
-    site: _DftSite,
-    coordinates: Any,
-    radii: Any,
-    np: Any,
-    config: DescriptorExtractionConfig,
-) -> dict[str, float]:
+def _sasa_features(site: _DftSite, coordinates: Any, radii: Any, np: Any,
+                   config: DescriptorExtractionConfig) -> dict[str, float]:
     count = config.sasa_points_per_atom
     index = np.arange(count, dtype=float) + 0.5
     z = 1.0 - 2.0 * index / count
@@ -631,15 +491,10 @@ def _sasa_features(
         points = coordinates[atom_index] + expanded[atom_index] * directions
         exposed = np.ones(count, dtype=bool)
         center_distances = np.linalg.norm(coordinates - coordinates[atom_index], axis=1)
-        blockers = np.where(
-            (center_distances < expanded + expanded[atom_index])
-            & (np.arange(len(radii)) != atom_index)
-        )[0]
+        blockers = np.where((center_distances < expanded + expanded[atom_index]) &
+                            (np.arange(len(radii)) != atom_index))[0]
         for blocker in blockers:
-            exposed &= (
-                np.sum((points - coordinates[blocker]) ** 2, axis=1)
-                >= expanded[blocker] ** 2
-            )
+            exposed &= np.sum((points - coordinates[blocker]) ** 2, axis=1) >= expanded[blocker] ** 2
         area += 4.0 * math.pi * expanded[atom_index] ** 2 * float(exposed.mean())
     return {"cooh_local_sasa_angstrom2": area}
 
@@ -655,69 +510,45 @@ def _radical_inverse(indices: Any, base: int, np: Any) -> Any:
     return result
 
 
-def _buried_feature(
-    site: _DftSite,
-    coordinates: Any,
-    radii: Any,
-    np: Any,
-    config: DescriptorExtractionConfig,
-) -> dict[str, float]:
+def _buried_feature(site: _DftSite, coordinates: Any, radii: Any, np: Any,
+                    config: DescriptorExtractionConfig) -> dict[str, float]:
     indices = np.arange(1, config.buried_samples + 1, dtype=np.int64)
     u, v, w = (_radical_inverse(indices, base, np) for base in (2, 3, 5))
     radius = config.buried_radius_angstrom * np.cbrt(u)
     z = 1.0 - 2.0 * v
     transverse = np.sqrt(1.0 - z * z)
-    directions = np.column_stack(
-        (transverse * np.cos(2 * math.pi * w), transverse * np.sin(2 * math.pi * w), z)
-    )
+    directions = np.column_stack((transverse * np.cos(2 * math.pi * w),
+                                  transverse * np.sin(2 * math.pi * w), z))
     center = coordinates[site.carboxyl_carbon]
     points = center + radius[:, None] * directions
     occupied = np.zeros(len(points), dtype=bool)
     for atom in range(len(radii)):
         if atom in site.carboxyl_atoms:
             continue
-        if (
-            np.linalg.norm(coordinates[atom] - center)
-            >= config.buried_radius_angstrom + radii[atom]
-        ):
+        if np.linalg.norm(coordinates[atom] - center) >= config.buried_radius_angstrom + radii[atom]:
             continue
-        occupied |= (
-            np.sum((points - coordinates[atom]) ** 2, axis=1) <= radii[atom] ** 2
-        )
+        occupied |= np.sum((points - coordinates[atom]) ** 2, axis=1) <= radii[atom] ** 2
     return {"cooh_buried_volume_percent": 100.0 * float(occupied.mean())}
 
 
 def _frontier_features(fchk: Mapping[str, Any], np: Any) -> dict[str, float]:
     alpha = np.asarray(fchk["alpha_orbital_energies_hartree"], dtype=float)
-    na, nb = int(fchk["number_of_alpha_electrons"]), int(
-        fchk["number_of_beta_electrons"]
-    )
+    na, nb = int(fchk["number_of_alpha_electrons"]), int(fchk["number_of_beta_electrons"])
     if na != nb or na < 1 or na >= len(alpha):
-        raise ValueError(
-            "Closed-shell occupied and virtual alpha orbitals are required."
-        )
+        raise ValueError("Closed-shell occupied and virtual alpha orbitals are required.")
     beta = fchk.get("beta_orbital_energies_hartree")
     if beta is not None and not np.allclose(alpha, np.asarray(beta), rtol=0, atol=1e-6):
-        raise ValueError(
-            "Unrestricted orbitals are unsupported by this neutral singlet extractor."
-        )
+        raise ValueError("Unrestricted orbitals are unsupported by this neutral singlet extractor.")
     homo, lumo = float(alpha[na - 1]), float(alpha[na])
     if lumo < homo:
         raise ValueError("LUMO energy is below HOMO energy.")
-    return {
-        "homo_ev": homo * HARTREE_TO_EV,
-        "lumo_ev": lumo * HARTREE_TO_EV,
-        "homo_lumo_gap_ev": (lumo - homo) * HARTREE_TO_EV,
-    }
+    return {"homo_ev": homo * HARTREE_TO_EV, "lumo_ev": lumo * HARTREE_TO_EV,
+            "homo_lumo_gap_ev": (lumo - homo) * HARTREE_TO_EV}
 
 
-def _npa_features(
-    job: str, site: _DftSite, fchk: Mapping[str, Any], deps: Mapping[str, Any]
-) -> dict[str, float]:
+def _npa_charges(job: str, fchk: Mapping[str, Any], deps: Mapping[str, Any]) -> Any:
     np, numbers = deps["np"], fchk["atomic_numbers"]
-    symbols = tuple(
-        deps["Chem"].GetPeriodicTable().GetElementSymbol(int(z)) for z in numbers
-    )
+    symbols = tuple(deps["Chem"].GetPeriodicTable().GetElementSymbol(int(z)) for z in numbers)
     # NPA fields in a checkpoint can be retained/custom additions. Require the
     # selected final log's combined-spin NPA table to establish provenance.
     table = parse_npa_table(job, natoms=len(numbers))
@@ -728,183 +559,165 @@ def _npa_features(
         raise ValueError("NPA charges have inconsistent length or non-finite values.")
     if abs(float(charges.sum()) - int(fchk["charge"])) > 0.02:
         raise ValueError("NPA charges do not sum to the molecular charge.")
-    return dict(
-        zip(
-            DESCRIPTOR_COLUMNS[:8],
-            (
-                charges[site.acidic_hydrogen],
-                charges[site.hydroxyl_oxygen],
-                charges[site.carbonyl_oxygen],
-                charges[site.carboxyl_carbon],
-                charges[site.ipso_carbon],
-                float(charges[list(site.ortho_carbons)].mean()),
-                float(charges[list(site.meta_carbons)].mean()),
-                charges[site.para_carbon],
-            ),
-        )
-    )
+    return charges
+
+
+def _npa_site_features(charges: Any, site: _DftSite, np: Any) -> dict[str, float]:
+    return dict(zip(DESCRIPTOR_COLUMNS[:8], (
+        charges[site.acidic_hydrogen], charges[site.hydroxyl_oxygen],
+        charges[site.carbonyl_oxygen], charges[site.carboxyl_carbon], charges[site.ipso_carbon],
+        float(charges[list(site.ortho_carbons)].mean()),
+        float(charges[list(site.meta_carbons)].mean()), charges[site.para_carbon]
+    )))
+
+
+def _npa_features(job: str, site: _DftSite, fchk: Mapping[str, Any], deps: Mapping[str, Any]) -> dict[str, float]:
+    return _npa_site_features(_npa_charges(job, fchk, deps), site, deps["np"])
 
 
 def _wiberg_features(job: str, site: _DftSite, natoms: int) -> dict[str, float]:
-    matrix = parse_wiberg_matrix(job, natoms=natoms)
-    return {
-        "wiberg_oh": float(matrix[site.hydroxyl_oxygen, site.acidic_hydrogen]),
-        "wiberg_co_single": float(matrix[site.carboxyl_carbon, site.hydroxyl_oxygen]),
-        "wiberg_co_double": float(matrix[site.carboxyl_carbon, site.carbonyl_oxygen]),
-        "wiberg_aryl_cooh": float(matrix[site.carboxyl_carbon, site.ipso_carbon]),
-    }
+    return _wiberg_site_features(parse_wiberg_matrix(job, natoms=natoms), site)
 
 
-def _stretch_features(
-    modes: Mapping[str, Any],
-    coordinates: Any,
-    site: _DftSite,
-    np: Any,
-    config: DescriptorExtractionConfig,
-) -> tuple[dict[str, float], dict[str, Any]]:
+def _wiberg_site_features(matrix: Any, site: _DftSite) -> dict[str, float]:
+    return {"wiberg_oh": float(matrix[site.hydroxyl_oxygen, site.acidic_hydrogen]),
+            "wiberg_co_single": float(matrix[site.carboxyl_carbon, site.hydroxyl_oxygen]),
+            "wiberg_co_double": float(matrix[site.carboxyl_carbon, site.carbonyl_oxygen]),
+            "wiberg_aryl_cooh": float(matrix[site.carboxyl_carbon, site.ipso_carbon])}
+
+
+def _mean_site_features(
+    sites: Sequence[_DftSite], operation: Any, columns: Sequence[str],
+) -> dict[str, float]:
+    """Equal-weight mean of complete local site values; never skip a failed site."""
+    site_values = []
+    for site_index, site in enumerate(sites):
+        try:
+            values = operation(site)
+            if set(values) != set(columns):
+                raise ValueError("Local feature group returned inconsistent columns.")
+            site_values.append({column: _finite_scalar(values[column], column) for column in columns})
+        except Exception as exc:
+            raise ValueError(
+                f"Aromatic COOH site {site_index} (fchk C index {site.carboxyl_carbon}) failed: {exc}"
+            ) from exc
+    if not site_values:
+        raise ValueError("At least one mapped aromatic COOH is required for a site mean.")
+    return {column: math.fsum(values[column] for values in site_values) / len(site_values)
+            for column in columns}
+
+
+def _stretch_features(modes: Mapping[str, Any], coordinates: Any, site: _DftSite,
+                      np: Any, config: DescriptorExtractionConfig) -> tuple[dict[str, float], dict[str, Any]]:
     frequencies = np.asarray(modes["frequencies_cm1"], dtype=float)
     displacements = np.asarray(modes["displacements"], dtype=float)
     if displacements.shape != (len(frequencies), len(coordinates), 3):
-        raise ValueError(
-            "Normal-mode displacement dimensions do not match the geometry."
-        )
+        raise ValueError("Normal-mode displacement dimensions do not match the geometry.")
     if len(frequencies) != 3 * len(coordinates) - 6:
-        raise ValueError(
-            "Complete 3N-6 normal modes are required for bond-stretch assignment."
-        )
+        raise ValueError("Complete 3N-6 normal modes are required for bond-stretch assignment.")
     if not np.isfinite(frequencies).all() or not np.isfinite(displacements).all():
         raise ValueError("Normal modes contain non-finite values.")
-    denominator = np.sum(displacements**2, axis=(1, 2))
+    denominator = np.sum(displacements ** 2, axis=(1, 2))
     results, assignments = {}, {}
-    for column, left, right in (
-        ("oh_stretch_frequency_cm1", site.hydroxyl_oxygen, site.acidic_hydrogen),
-        ("co_double_stretch_frequency_cm1", site.carboxyl_carbon, site.carbonyl_oxygen),
-    ):
+    for column, left, right in (("oh_stretch_frequency_cm1", site.hydroxyl_oxygen, site.acidic_hydrogen),
+                                ("co_double_stretch_frequency_cm1", site.carboxyl_carbon, site.carbonyl_oxygen)):
         vector = coordinates[right] - coordinates[left]
         vector /= np.linalg.norm(vector)
         projection = (displacements[:, right] - displacements[:, left]) @ vector
-        scores = projection**2 / np.maximum(denominator, 1e-30)
+        scores = projection ** 2 / np.maximum(denominator, 1e-30)
         scores[(frequencies <= 0) | (denominator < 1e-20)] = -1
         index = int(np.argmax(scores))
         if scores[index] < config.min_stretch_projection:
-            raise ValueError(
-                f"No mode has sufficient bond-stretch projection for {column}."
-            )
+            raise ValueError(f"No mode has sufficient bond-stretch projection for {column}.")
         results[column] = float(frequencies[index] * config.frequency_scale)
-        assignments[column] = {
-            "mode_index_0based": index,
-            "projection": float(scores[index]),
-            "unscaled_cm1": float(frequencies[index]),
-        }
+        assignments[column] = {"mode_index_0based": index, "projection": float(scores[index]),
+                               "unscaled_cm1": float(frequencies[index])}
     return results, assignments
 
 
 def calculate_descriptors(
-    smiles: str,
-    logfile_path: Path | str,
-    fchkfile_path: Path | str,
-    dependencies: Mapping[str, Any] | None = None,
-    *,
+    smiles: str, logfile_path: Path | str, fchkfile_path: Path | str,
+    dependencies: Mapping[str, Any] | None = None, *,
     config: DescriptorExtractionConfig | None = None,
-    density_cube_path: Path | str | None = None,
-    esp_cube_path: Path | str | None = None,
+    density_cube_path: Path | str | None = None, esp_cube_path: Path | str | None = None,
 ) -> dict[str, Any]:
     """Return 30 DFT feature columns plus explicit completeness/provenance metadata."""
     deps = dependencies or _import_dependencies()
     np = deps["np"]
     config = config or _default_config()
     try:
-        job = select_final_gaussian_job(
-            Path(logfile_path).read_text(encoding=config.log_encoding)
-        )
+        job = select_final_gaussian_job(Path(logfile_path).read_text(encoding=config.log_encoding))
         fchk = parse_fchk(fchkfile_path)
-        site, coordinates = _prepare_geometry(smiles, fchk, deps, config)
+        sites, coordinates = _prepare_geometry(smiles, fchk, deps, config)
         log_coordinates = _validate_log_fchk(job, fchk, deps, config)
     except DescriptorExtractionError:
         raise
     except Exception as exc:
-        raise DescriptorExtractionError(
-            f"Cannot safely pair the structure/log/fchk: {exc}"
-        ) from exc
+        raise DescriptorExtractionError(f"Cannot safely pair the structure/log/fchk: {exc}") from exc
 
     result = {column: math.nan for column in DESCRIPTOR_COLUMNS}
     issues: dict[str, str] = {}
-    provenance: dict[str, Any] = {
-        "log": str(Path(logfile_path).resolve()),
-        "fchk": str(Path(fchkfile_path).resolve()),
-        "job_selection": "last normally terminated job only",
-        "npa_source": "selected final log combined-spin NPA table",
-        "local_atom_indices_0based": {
-            key: getattr(site, key)
-            for key in (
-                "carboxyl_carbon",
-                "carbonyl_oxygen",
-                "hydroxyl_oxygen",
-                "acidic_hydrogen",
-                "ipso_carbon",
-                "ortho_carbons",
-                "meta_carbons",
-                "para_carbon",
-            )
-        },
-    }
+    site_indices = [{key: getattr(site, key) for key in (
+        "carboxyl_carbon", "carbonyl_oxygen", "hydroxyl_oxygen", "acidic_hydrogen",
+        "ipso_carbon", "ring_atoms", "ortho_carbons", "meta_carbons", "para_carbon",
+        "substituted_ring_carbons")} for site in sites]
+    for site, indices in zip(sites, site_indices):
+        substituted = frozenset(site.substituted_ring_carbons)
+        ortho = len(substituted.intersection(site.ortho_carbons))
+        meta = len(substituted.intersection(site.meta_carbons))
+        para = int(site.para_carbon in substituted)
+        indices["substituent_position_counts"] = {
+            "total": ortho + meta + para, "ortho": ortho, "meta": meta, "para": para}
+    provenance: dict[str, Any] = {"log": str(Path(logfile_path).resolve()),
+                                  "fchk": str(Path(fchkfile_path).resolve()),
+                                  "job_selection": "last normally terminated job only",
+                                  "npa_source": "selected final log combined-spin NPA table",
+                                  "aromatic_cooh_site_count": len(sites),
+                                  "local_atom_indices_by_site_0based": site_indices,
+                                  "site_aggregation": "equal-weight arithmetic mean; all sites required",
+                                  "ignored_aliphatic_cooh_count": len(_mapped_matches(
+                                      _parse_smiles(smiles, deps), ACID_SMARTS, deps)) - len(sites)}
+    if len(sites) == 1:
+        provenance["local_atom_indices_0based"] = site_indices[0]
 
     def collect(columns: Sequence[str], operation: Any) -> None:
         try:
             values = operation()
             if set(values) != set(columns):
                 raise ValueError("Feature group returned inconsistent columns.")
-            checked = {
-                column: _finite_scalar(values[column], column) for column in columns
-            }
+            checked = {column: _finite_scalar(values[column], column) for column in columns}
             result.update(checked)
         except Exception as exc:
             for column in columns:
                 issues[column] = f"{type(exc).__name__}: {exc}"
 
-    collect(DESCRIPTOR_COLUMNS[:8], lambda: _npa_features(job, site, fchk, deps))
-    collect(
-        DESCRIPTOR_COLUMNS[8:12], lambda: _wiberg_features(job, site, len(coordinates))
-    )
+    def npa_mean() -> dict[str, float]:
+        charges = _npa_charges(job, fchk, deps)
+        return _mean_site_features(sites, lambda site: _npa_site_features(charges, site, np),
+                                   DESCRIPTOR_COLUMNS[:8])
+    def wiberg_mean() -> dict[str, float]:
+        matrix = parse_wiberg_matrix(job, natoms=len(coordinates))
+        return _mean_site_features(sites, lambda site: _wiberg_site_features(matrix, site),
+                                   DESCRIPTOR_COLUMNS[8:12])
+    collect(DESCRIPTOR_COLUMNS[:8], npa_mean)
+    collect(DESCRIPTOR_COLUMNS[8:12], wiberg_mean)
     collect(DESCRIPTOR_COLUMNS[14:17], lambda: _frontier_features(fchk, np))
-    collect(
-        ("dipole_moment_debye",),
-        lambda: {
-            "dipole_moment_debye": float(np.linalg.norm(fchk["dipole_au"]))
-            * DIPOLE_AU_TO_DEBYE
-        },
-    )
-    collect(
-        ("isotropic_polarizability_au",),
-        lambda: {
-            "isotropic_polarizability_au": float(
-                np.trace(fchk["polarizability_au"]) / 3.0
-            )
-        },
-    )
-    collect(
-        DESCRIPTOR_COLUMNS[23:28], lambda: _geometry_features(site, coordinates, np)
-    )
-    collect(
-        ("cooh_local_sasa_angstrom2",),
-        lambda: _sasa_features(
-            site, coordinates, _vdw_radii(fchk["atomic_numbers"], deps), np, config
-        ),
-    )
-    collect(
-        ("cooh_buried_volume_percent",),
-        lambda: _buried_feature(
-            site, coordinates, _vdw_radii(fchk["atomic_numbers"], deps), np, config
-        ),
-    )
-    provenance["geometric_sampling"] = {
-        "sasa_points_per_atom": config.sasa_points_per_atom,
+    collect(("dipole_moment_debye",), lambda: {"dipole_moment_debye":
+            float(np.linalg.norm(fchk["dipole_au"])) * DIPOLE_AU_TO_DEBYE})
+    collect(("isotropic_polarizability_au",), lambda: {"isotropic_polarizability_au":
+            float(np.trace(fchk["polarizability_au"]) / 3.0)})
+    collect(DESCRIPTOR_COLUMNS[23:28], lambda: _mean_site_features(
+        sites, lambda site: _geometry_features(site, coordinates, np), DESCRIPTOR_COLUMNS[23:28]))
+    collect(("cooh_local_sasa_angstrom2",), lambda: _mean_site_features(
+        sites, lambda site: _sasa_features(site, coordinates, _vdw_radii(
+            fchk["atomic_numbers"], deps), np, config), ("cooh_local_sasa_angstrom2",)))
+    collect(("cooh_buried_volume_percent",), lambda: _mean_site_features(
+        sites, lambda site: _buried_feature(site, coordinates, _vdw_radii(
+            fchk["atomic_numbers"], deps), np, config), ("cooh_buried_volume_percent",)))
+    provenance["geometric_sampling"] = {"sasa_points_per_atom": config.sasa_points_per_atom,
         "sasa_probe_angstrom": config.sasa_probe_radius_angstrom,
-        "buried_samples": config.buried_samples,
-        "buried_radius_angstrom": config.buried_radius_angstrom,
-        "radii": "RDKit vdW",
-        "buried_center": "COOH carbon; reference COOH atoms excluded",
-    }
+        "buried_samples": config.buried_samples, "buried_radius_angstrom": config.buried_radius_angstrom,
+        "radii": "RDKit vdW", "buried_center": "COOH carbon; reference COOH atoms excluded"}
 
     modes = None
     try:
@@ -913,46 +726,31 @@ def calculate_descriptors(
         log_modes = parse_normal_modes(job, natoms=len(coordinates))
         modes = log_modes
         mode_coordinates = log_coordinates
-        if (
-            fchk.get("frequencies_cm1") is not None
-            and fchk.get("displacements") is not None
-        ):
-            if np.asarray(fchk["frequencies_cm1"]).shape != np.asarray(
-                log_modes["frequencies_cm1"]
-            ).shape or not np.allclose(
+        if fchk.get("frequencies_cm1") is not None and fchk.get("displacements") is not None:
+            if np.asarray(fchk["frequencies_cm1"]).shape != np.asarray(log_modes["frequencies_cm1"]).shape or not np.allclose(
                 fchk["frequencies_cm1"], log_modes["frequencies_cm1"], rtol=0, atol=0.05
             ):
-                raise ValueError(
-                    "fchk modes do not match the final log; a retained old Hessian is unsafe."
-                )
-            modes = {
-                "frequencies_cm1": fchk["frequencies_cm1"],
-                "displacements": fchk["displacements"],
-                "atomic_numbers": fchk["atomic_numbers"],
-                "precision": "fchk",
-            }
+                raise ValueError("fchk modes do not match the final log; a retained old Hessian is unsafe.")
+            modes = {"frequencies_cm1": fchk["frequencies_cm1"],
+                     "displacements": fchk["displacements"],
+                     "atomic_numbers": fchk["atomic_numbers"], "precision": "fchk"}
             mode_coordinates = coordinates
-        if modes.get("atomic_numbers") is not None and not np.array_equal(
-            modes["atomic_numbers"], fchk["atomic_numbers"]
-        ):
+        if modes.get("atomic_numbers") is not None and not np.array_equal(modes["atomic_numbers"], fchk["atomic_numbers"]):
             raise ValueError("Normal-mode atom order differs from fchk.")
-        if (
-            config.require_minimum
-            and np.min(modes["frequencies_cm1"])
-            < -config.imaginary_frequency_tolerance_cm1
-        ):
-            raise DescriptorExtractionError(
-                "A significant imaginary mode indicates a non-minimum structure."
-            )
-        stretch, assignment = _stretch_features(
-            modes, mode_coordinates, site, np, config
-        )
-        result.update(stretch)
-        provenance["normal_modes"] = {
-            "assignments": assignment,
-            "scale": config.frequency_scale,
-            "precision": modes.get("precision", "fchk"),
-        }
+        if config.require_minimum and np.min(modes["frequencies_cm1"]) < -config.imaginary_frequency_tolerance_cm1:
+            raise DescriptorExtractionError("A significant imaginary mode indicates a non-minimum structure.")
+        assignments = []
+        def site_stretch(site: _DftSite) -> dict[str, float]:
+            stretch, assignment = _stretch_features(modes, mode_coordinates, site, np, config)
+            assignments.append({"carboxyl_carbon_0based": site.carboxyl_carbon,
+                                "assignments": assignment})
+            return stretch
+        result.update(_mean_site_features(sites, site_stretch, DESCRIPTOR_COLUMNS[28:30]))
+        provenance["normal_modes"] = {"assignments_by_site": assignments,
+            "scale": config.frequency_scale, "precision": modes.get("precision", "fchk"),
+            "aggregation": "mean of independently assigned harmonic-mode frequencies"}
+        if len(sites) == 1:
+            provenance["normal_modes"]["assignments"] = assignments[0]["assignments"]
     except DescriptorExtractionError:
         raise
     except Exception as exc:
@@ -966,94 +764,68 @@ def calculate_descriptors(
             if executable:
                 try:
                     density_cube_path, esp_cube_path = generate_cube_pair(
-                        executable,
-                        fchkfile_path,
-                        scratch,
-                        file_stem=Path(logfile_path).stem,
-                        npts=config.cube_npts,
-                        timeout_seconds=config.cube_timeout_seconds,
-                    )
+                        executable, fchkfile_path, scratch,
+                        file_stem=Path(logfile_path).stem, npts=config.cube_npts,
+                        timeout_seconds=config.cube_timeout_seconds)
                     provenance["cubegen"] = str(executable)
                 except Exception as exc:
                     generation_issue = str(exc)
         density = None
         try:
             if density_cube_path is None:
-                raise ValueError(
-                    generation_issue
-                    or "Density CUBE is absent; provide a cube or a Gaussian cubegen executable."
-                )
+                raise ValueError(generation_issue or "Density CUBE is absent; provide a cube or a Gaussian cubegen executable.")
             density = read_cube(density_cube_path)
-            validate_cube_geometry(
-                density,
-                fchk["atomic_numbers"],
-                coordinates,
-                atol_angstrom=config.geometry_tolerance_angstrom,
-            )
-            collect(
-                ("molecular_volume_angstrom3",),
-                lambda: {
-                    "molecular_volume_angstrom3": density_volume(
-                        density, density_isovalue=config.density_isovalue
-                    )
-                },
-            )
-            provenance["density_surface"] = {
-                "isovalue_e_bohr3": config.density_isovalue,
+            validate_cube_geometry(density, fchk["atomic_numbers"], coordinates,
+                                   atol_angstrom=config.geometry_tolerance_angstrom)
+            collect(("molecular_volume_angstrom3",), lambda: {
+                "molecular_volume_angstrom3": density_volume(density, density_isovalue=config.density_isovalue)})
+            provenance["density_surface"] = {"isovalue_e_bohr3": config.density_isovalue,
                 "local_esp_radius_angstrom": config.esp_local_radius_angstrom,
                 "volume": "occupied density grid; discretized electron-density isosurface volume",
                 "surface_esp": "linear grid-edge crossing samples; nearest-nucleus local patches",
                 "mpi": "arithmetic mean of absolute ESP over all grid-edge isosurface intersections",
-                "density_cube": str(Path(density_cube_path).resolve()),
-            }
+                "density_cube": str(Path(density_cube_path).resolve())}
         except Exception as exc:
             density = None
             issues["molecular_volume_angstrom3"] = f"{type(exc).__name__}: {exc}"
-
-        def surface() -> dict[str, float]:
+        surface_columns = (*DESCRIPTOR_COLUMNS[12:14], "mpi_hartree_per_e")
+        try:
             if density is None or esp_cube_path is None:
-                raise ValueError(
-                    generation_issue
-                    or "Matched density and ESP cubes are required for surface ESP."
-                )
+                raise ValueError(generation_issue or "Matched density and ESP cubes are required for surface ESP.")
             esp = read_cube(esp_cube_path)
-            values = calculate_density_surface_features(
-                density,
-                esp,
-                site.acidic_hydrogen,
-                site.carbonyl_oxygen,
+            values = calculate_density_surface_features_for_sites(
+                density, esp, [(site.acidic_hydrogen, site.carbonyl_oxygen) for site in sites],
                 density_isovalue=config.density_isovalue,
-                local_radius_angstrom=config.esp_local_radius_angstrom,
-            )
-            provenance["density_surface"]["esp_cube"] = str(
-                Path(esp_cube_path).resolve()
-            )
-            columns = (*DESCRIPTOR_COLUMNS[12:14], "mpi_hartree_per_e")
-            return {column: values[column] for column in columns}
-
-        collect((*DESCRIPTOR_COLUMNS[12:14], "mpi_hartree_per_e"), surface)
-    missing = [
-        column
-        for column in DESCRIPTOR_COLUMNS
-        if not math.isfinite(float(result[column]))
-    ]
+                local_radius_angstrom=config.esp_local_radius_angstrom)
+            provenance["density_surface"]["esp_cube"] = str(Path(esp_cube_path).resolve())
+            result["mpi_hartree_per_e"] = _finite_scalar(values["mpi_hartree_per_e"], "MPI")
+            if len(values["site_features"]) != len(sites) or len(values["site_issues"]) != len(sites):
+                raise ValueError("Surface results do not cover every aromatic COOH site.")
+            provenance["density_surface"]["local_values_by_site"] = values["site_features"]
+            provenance["density_surface"]["local_issues_by_site"] = values["site_issues"]
+            for column in DESCRIPTOR_COLUMNS[12:14]:
+                failures = [f"site {i} (fchk C index {sites[i].carboxyl_carbon}): "
+                    f"{site_issues.get(column, 'local surface value unavailable')}"
+                    for i, (site_values, site_issues) in enumerate(zip(
+                        values["site_features"], values["site_issues"]))
+                    if column not in site_values or column in site_issues]
+                if failures:
+                    issues[column] = "; ".join(failures)
+                else:
+                    result[column] = math.fsum(_finite_scalar(v[column], column)
+                        for v in values["site_features"]) / len(sites)
+        except Exception as exc:
+            for column in surface_columns:
+                result[column] = math.nan
+                issues[column] = f"{type(exc).__name__}: {exc}"
+    missing = [column for column in DESCRIPTOR_COLUMNS if not math.isfinite(float(result[column]))]
     if missing and config.missing_policy == "raise":
-        raise DescriptorExtractionError(
-            "Missing/invalid DFT features: "
-            + ", ".join(
-                f"{column} ({issues.get(column, 'unavailable')})" for column in missing
-            )
-        )
-    result.update(
-        {
-            "descriptor_status": "partial" if missing else "complete",
-            "missing_descriptors": ";".join(missing),
-            "descriptor_issues": json.dumps(issues, ensure_ascii=False, sort_keys=True),
-            "descriptor_provenance": json.dumps(
-                provenance, ensure_ascii=False, sort_keys=True
-            ),
-        }
-    )
+        raise DescriptorExtractionError("Missing/invalid DFT features: " + ", ".join(
+            f"{column} ({issues.get(column, 'unavailable')})" for column in missing))
+    result.update({"descriptor_status": "partial" if missing else "complete",
+        "missing_descriptors": ";".join(missing),
+        "descriptor_issues": json.dumps(issues, ensure_ascii=False, sort_keys=True),
+        "descriptor_provenance": json.dumps(provenance, ensure_ascii=False, sort_keys=True)})
     return result
 
 
@@ -1065,24 +837,16 @@ def _row_path(row: Any, column: str, base: Path) -> Path | None:
     return path if path.is_absolute() else base / path
 
 
-def _extract_row(
-    row: Any, config: DescriptorExtractionConfig, dependencies: Mapping[str, Any]
-) -> dict[str, Any]:
-    name, smiles = (
-        str(row[config.name_column]).strip(),
-        str(row[config.smiles_column]).strip(),
-    )
+def _extract_row(row: Any, config: DescriptorExtractionConfig, dependencies: Mapping[str, Any]) -> dict[str, Any]:
+    name, smiles = str(row[config.name_column]).strip(), str(row[config.smiles_column]).strip()
     if not name or not smiles:
         raise DescriptorExtractionError("Name and SMILES must be nonempty.")
-    if any(c in name for c in "*?[]/\\:") or name in {".", ".."}:
+    if any(c in name for c in '*?[]/\\:') or name in {'.', '..'}:
         raise DescriptorExtractionError("Name cannot be used safely as a filename.")
     stem = config.file_stem_template.format(name=name)
     base = config.input_path.resolve().parent
     log = _row_path(row, config.log_column, base) or config.logdata_path / f"{stem}.log"
-    fchk = (
-        _row_path(row, config.fchk_column, base)
-        or config.fchkdata_path / f"{stem}.fchk"
-    )
+    fchk = _row_path(row, config.fchk_column, base) or config.fchkdata_path / f"{stem}.fchk"
     density = _row_path(row, config.density_cube_column, base)
     esp = _row_path(row, config.esp_cube_column, base)
     if density is None and config.density_cube_path is not None:
@@ -1092,30 +856,16 @@ def _extract_row(
     for source in (log, fchk, density, esp):
         if source is None:
             continue
-        if any(
-            _same_file(source, output)
-            for output in (config.output_path, config.invalid_output_path)
-        ):
-            raise _UnsafeOutputPath(
-                f"An output would overwrite a calculation source file: {source}"
-            )
+        if any(_same_file(source, output) for output in (config.output_path, config.invalid_output_path)):
+            raise _UnsafeOutputPath(f"An output would overwrite a calculation source file: {source}")
         if not source.is_file():
             raise DescriptorExtractionError(f"Calculation file was not found: {source}")
-    return calculate_descriptors(
-        smiles,
-        log,
-        fchk,
-        dependencies,
-        config=config,
-        density_cube_path=density,
-        esp_cube_path=esp,
-    )
+    return calculate_descriptors(smiles, log, fchk, dependencies, config=config,
+        density_cube_path=density, esp_cube_path=esp)
 
 
 def _read_input_csv(config: DescriptorExtractionConfig, pd: Any) -> Any:
-    with config.input_path.open(
-        "r", encoding=config.input_encoding, newline=""
-    ) as handle:
+    with config.input_path.open("r", encoding=config.input_encoding, newline="") as handle:
         reader = csv.reader(handle, strict=True)
         header = next((record for record in reader if record), None)
         if not header or any(not column.strip() for column in header):
@@ -1124,40 +874,22 @@ def _read_input_csv(config: DescriptorExtractionConfig, pd: Any) -> Any:
             raise ValueError("Input CSV has duplicate columns.")
         for record in reader:
             if record and len(record) != len(header):
-                raise ValueError(
-                    f"Malformed CSV record ending at line {reader.line_num}."
-                )
-    frame = pd.read_csv(
-        config.input_path,
-        encoding=config.input_encoding,
-        dtype=str,
-        keep_default_na=False,
-        index_col=False,
-    )
+                raise ValueError(f"Malformed CSV record ending at line {reader.line_num}.")
+    frame = pd.read_csv(config.input_path, encoding=config.input_encoding, dtype=str,
+                        keep_default_na=False, index_col=False)
     if list(frame.columns) != header:
         raise ValueError("CSV columns were not preserved exactly.")
-    missing = [
-        column
-        for column in (config.name_column, config.smiles_column)
-        if column not in frame
-    ]
+    missing = [column for column in (config.name_column, config.smiles_column) if column not in frame]
     if missing:
         raise ValueError(f"Missing required input columns: {missing}")
-    conflicts = set(header) & (
-        set(DESCRIPTOR_COLUMNS)
-        | set(METADATA_COLUMNS)
-        | {"source_index", "error_type", "error_message"}
-    )
+    conflicts = set(header) & (set(DESCRIPTOR_COLUMNS) | set(METADATA_COLUMNS) |
+                               {"source_index", "error_type", "error_message"})
     if conflicts:
-        raise ValueError(
-            f"Input already contains reserved output columns: {sorted(conflicts)}"
-        )
+        raise ValueError(f"Input already contains reserved output columns: {sorted(conflicts)}")
     return frame
 
 
-def extract_descriptors(
-    config: DescriptorExtractionConfig | Mapping[str, Any],
-) -> DescriptorExtractionResult:
+def extract_descriptors(config: DescriptorExtractionConfig | Mapping[str, Any]) -> DescriptorExtractionResult:
     if not isinstance(config, DescriptorExtractionConfig):
         config = DescriptorExtractionConfig(**dict(config))
     dependencies = _import_dependencies()
@@ -1172,15 +904,9 @@ def extract_descriptors(
             raise
         except Exception as exc:
             if config.on_error == "raise":
-                raise DescriptorExtractionError(
-                    f"Row {source_index} failed: {type(exc).__name__}: {exc}"
-                ) from exc
+                raise DescriptorExtractionError(f"Row {source_index} failed: {type(exc).__name__}: {exc}") from exc
             invalid = row.copy()
-            invalid["source_index"], invalid["error_type"], invalid["error_message"] = (
-                source_index,
-                type(exc).__name__,
-                str(exc),
-            )
+            invalid["source_index"], invalid["error_type"], invalid["error_message"] = source_index, type(exc).__name__, str(exc)
             invalid_rows.append(invalid)
             counts[type(exc).__name__] = counts.get(type(exc).__name__, 0) + 1
             continue
@@ -1189,56 +915,31 @@ def extract_descriptors(
         valid_rows.append(valid)
         feature_rows.append(values)
     source_columns = list(frame.columns) + ["source_index"]
-    output = pd.concat(
-        [
-            pd.DataFrame(valid_rows, columns=source_columns).reset_index(drop=True),
-            pd.DataFrame(feature_rows, columns=DESCRIPTOR_COLUMNS + METADATA_COLUMNS),
-        ],
-        axis=1,
-    )
-    invalid = pd.DataFrame(
-        invalid_rows, columns=source_columns + ["error_type", "error_message"]
-    ).reset_index(drop=True)
+    output = pd.concat([pd.DataFrame(valid_rows, columns=source_columns).reset_index(drop=True),
+                        pd.DataFrame(feature_rows, columns=DESCRIPTOR_COLUMNS + METADATA_COLUMNS)], axis=1)
+    invalid = pd.DataFrame(invalid_rows, columns=source_columns + ["error_type", "error_message"]).reset_index(drop=True)
     config.output_path.parent.mkdir(parents=True, exist_ok=True)
     config.invalid_output_path.parent.mkdir(parents=True, exist_ok=True)
     output.to_csv(config.output_path, index=False, encoding=config.output_encoding)
-    invalid.to_csv(
-        config.invalid_output_path, index=False, encoding=config.output_encoding
-    )
-    return DescriptorExtractionResult(
-        config, output, invalid, len(frame), len(output), counts
-    )
+    invalid.to_csv(config.invalid_output_path, index=False, encoding=config.output_encoding)
+    return DescriptorExtractionResult(config, output, invalid, len(frame), len(output), counts)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Gaussian log/fchkから安息香酸誘導体のDFT特徴量30個を抽出"
-    )
+    parser = argparse.ArgumentParser(description="Gaussian log/fchkから安息香酸誘導体のDFT特徴量30個を抽出")
     parser.add_argument("input_csv", type=Path)
     parser.add_argument("output_csv", type=Path)
     parser.add_argument("--log-dir", type=Path, default=Path("."))
     parser.add_argument("--fchk-dir", type=Path, default=None)
-    parser.add_argument(
-        "--density-cube-path",
-        "--density-cube-dir",
-        dest="density_cube_path",
-        type=Path,
-        default=None,
-    )
-    parser.add_argument(
-        "--esp-cube-path",
-        "--esp-cube-dir",
-        dest="esp_cube_path",
-        type=Path,
-        default=None,
-    )
+    parser.add_argument("--density-cube-path", "--density-cube-dir", dest="density_cube_path",
+                        type=Path, default=None)
+    parser.add_argument("--esp-cube-path", "--esp-cube-dir", dest="esp_cube_path",
+                        type=Path, default=None)
     parser.add_argument("--invalid-output", type=Path, default=None)
     parser.add_argument("--name-column", default="name")
     parser.add_argument("--smiles-column", default="smiles")
     parser.add_argument("--stem-template", default="sub_{name}")
-    parser.add_argument(
-        "--on-error", choices=sorted(_ERROR_POLICIES), default="continue"
-    )
+    parser.add_argument("--on-error", choices=sorted(_ERROR_POLICIES), default="continue")
     parser.add_argument("--missing-policy", choices=("nan", "raise"), default="nan")
     parser.add_argument("--cubegen", default=None)
     parser.add_argument("--cube-npts", type=int, default=100)
@@ -1249,32 +950,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--output-encoding", default="utf-8-sig")
     parser.add_argument("--log-encoding", default="utf-8")
     args = parser.parse_args(argv)
-    config = DescriptorExtractionConfig(
-        args.input_csv,
-        args.output_csv,
-        logdata_path=args.log_dir,
-        fchkdata_path=args.fchk_dir,
-        density_cube_path=args.density_cube_path,
-        esp_cube_path=args.esp_cube_path,
-        invalid_output_path=args.invalid_output,
-        name_column=args.name_column,
-        smiles_column=args.smiles_column,
-        file_stem_template=args.stem_template,
-        on_error=args.on_error,
-        missing_policy=args.missing_policy,
-        cubegen_path=args.cubegen,
-        cube_npts=args.cube_npts,
-        density_isovalue=args.density_isovalue,
-        frequency_scale=args.frequency_scale,
-        require_minimum=not args.allow_imaginary,
-        input_encoding=args.input_encoding,
-        output_encoding=args.output_encoding,
-        log_encoding=args.log_encoding,
-    )
+    config = DescriptorExtractionConfig(args.input_csv, args.output_csv,
+        logdata_path=args.log_dir, fchkdata_path=args.fchk_dir,
+        density_cube_path=args.density_cube_path, esp_cube_path=args.esp_cube_path,
+        invalid_output_path=args.invalid_output, name_column=args.name_column,
+        smiles_column=args.smiles_column, file_stem_template=args.stem_template,
+        on_error=args.on_error, missing_policy=args.missing_policy,
+        cubegen_path=args.cubegen, cube_npts=args.cube_npts,
+        density_isovalue=args.density_isovalue, frequency_scale=args.frequency_scale,
+        require_minimum=not args.allow_imaginary, input_encoding=args.input_encoding,
+        output_encoding=args.output_encoding, log_encoding=args.log_encoding)
     result = extract_descriptors(config)
-    print(
-        f"Read {result.rows_read}; valid {result.rows_written}; partial {result.rows_partial}; invalid {result.rows_excluded}"
-    )
+    print(f"Read {result.rows_read}; valid {result.rows_written}; partial {result.rows_partial}; invalid {result.rows_excluded}")
     print(f"Valid: {config.output_path}\nInvalid: {config.invalid_output_path}")
     return 0
 
@@ -1307,14 +994,15 @@ def _parse_smiles(smiles: str, dependencies: Mapping[str, Any]) -> Any:
         )
     return mol
 
-
 def _mapped_matches(
     mol: Any, smarts: str, dependencies: Mapping[str, Any]
 ) -> tuple[dict[int, int], ...]:
     pattern = dependencies["Chem"].MolFromSmarts(smarts)
     if pattern is None:
         raise RuntimeError(f"Internal SMARTS is invalid: {smarts}")
-    map_positions = {atom.GetAtomMapNum(): atom.GetIdx() for atom in pattern.GetAtoms()}
+    map_positions = {
+        atom.GetAtomMapNum(): atom.GetIdx() for atom in pattern.GetAtoms()
+    }
     if set(map_positions) != {1, 2, 3}:
         raise RuntimeError("Internal carboxyl SMARTS has invalid atom maps.")
     return tuple(
@@ -1322,50 +1010,32 @@ def _mapped_matches(
         for match in mol.GetSubstructMatches(pattern, uniquify=True)
     )
 
-
-def _find_benzoic_acid_site(
-    mol: Any, dependencies: Mapping[str, Any]
-) -> _BenzoicAcidSite:
-    """酸SMARTSのmap番号と環内距離から局所原子を一意に対応付ける。"""
-    neutral_sites = _mapped_matches(mol, ACID_SMARTS, dependencies)
-    anionic_sites = _mapped_matches(mol, CARBOXYLATE_SMARTS, dependencies)
-    all_acid_carbons = {site[1] for site in neutral_sites + anionic_sites}
-    if len(all_acid_carbons) > 1:
-        raise DescriptorExtractionError(
-            f"Multiple carboxylic acid/carboxylate groups were found "
-            f"({len(all_acid_carbons)}); exactly one is required."
-        )
-    if not neutral_sites:
-        raise DescriptorExtractionError(
-            "Exactly one neutral COOH group is required; carboxylates/esters "
-            "are not valid acid sites."
-        )
-    if len(neutral_sites) != 1:
-        raise DescriptorExtractionError("The neutral COOH atom mapping is ambiguous.")
-    acid = neutral_sites[0]
-    carboxyl_carbon, carbonyl_oxygen, hydroxyl_oxygen = (acid[1], acid[2], acid[3])
+def _aromatic_acid_attachment(mol: Any, acid: Mapping[int, int]) -> int | None:
+    """COOHの唯一の環側隣接原子を返す。脂肪族酸ならNone。"""
     neighbors = [
         atom.GetIdx()
-        for atom in mol.GetAtomWithIdx(carboxyl_carbon).GetNeighbors()
-        if atom.GetIdx() not in {carbonyl_oxygen, hydroxyl_oxygen}
+        for atom in mol.GetAtomWithIdx(acid[1]).GetNeighbors()
+        if atom.GetIdx() not in {acid[2], acid[3]}
     ]
     if len(neighbors) != 1:
-        raise DescriptorExtractionError(
-            "The COOH must have one carbon-ring attachment."
-        )
+        return None
     ipso = neighbors[0]
     ipso_atom = mol.GetAtomWithIdx(ipso)
     if ipso_atom.GetAtomicNum() != 6 or not ipso_atom.GetIsAromatic():
-        raise DescriptorExtractionError(
-            "Benzoic acid scaffold mismatch: COOH must be directly bonded "
-            "to an aromatic carbon."
-        )
+        return None
+    return ipso
+
+def _map_benzoic_acid_site(
+    mol: Any, acid: Mapping[int, int], ipso: int
+) -> _BenzoicAcidSite:
+    """酸SMARTSのmap番号と基準環内距離から局所原子を対応付ける。"""
+    carboxyl_carbon, carbonyl_oxygen, hydroxyl_oxygen = (
+        acid[1], acid[2], acid[3]
+    )
 
     def is_aromatic_ring(ring: Sequence[int]) -> bool:
         return all(mol.GetAtomWithIdx(index).GetIsAromatic() for index in ring) and all(
-            mol.GetBondBetweenAtoms(
-                index, ring[(position + 1) % len(ring)]
-            ).GetIsAromatic()
+            mol.GetBondBetweenAtoms(index, ring[(position + 1) % len(ring)]).GetIsAromatic()
             for position, index in enumerate(ring)
         )
 
@@ -1377,8 +1047,7 @@ def _find_benzoic_acid_site(
     candidates = [
         ring
         for ring in aromatic_rings
-        if ipso in ring
-        and len(ring) == 6
+        if ipso in ring and len(ring) == 6
         and all(mol.GetAtomWithIdx(index).GetAtomicNum() == 6 for index in ring)
     ]
     if len(candidates) != 1:
@@ -1388,14 +1057,6 @@ def _find_benzoic_acid_site(
         )
     ring = candidates[0]
     ring_set = frozenset(ring)
-    if any(
-        frozenset(other) != ring_set and ring_set.intersection(other)
-        for other in aromatic_rings
-    ):
-        raise DescriptorExtractionError(
-            "The reference benzene ring is fused with another aromatic ring; "
-            "this scaffold is unsupported."
-        )
     # 環外の橋や側鎖を経由する近道を使わず、基準環内だけで距離を求める。
     adjacency = {
         index: tuple(
@@ -1409,8 +1070,7 @@ def _find_benzoic_acid_site(
         raise DescriptorExtractionError("The reference benzene cycle is ambiguous.")
     if any(
         not mol.GetBondBetweenAtoms(index, neighbor).GetIsAromatic()
-        for index, neighbors in adjacency.items()
-        for neighbor in neighbors
+        for index, neighbors in adjacency.items() for neighbor in neighbors
     ):
         raise DescriptorExtractionError("The reference ring bonds must be aromatic.")
     distances = {ipso: 0}
@@ -1429,14 +1089,54 @@ def _find_benzoic_acid_site(
         hydroxyl_oxygen=hydroxyl_oxygen,
         ipso_carbon=ipso,
         ring_atoms=tuple(sorted(ring)),
-        ortho_carbons=tuple(
-            sorted(i for i, distance in distances.items() if distance == 1)
-        ),
-        meta_carbons=tuple(
-            sorted(i for i, distance in distances.items() if distance == 2)
-        ),
+        ortho_carbons=tuple(sorted(i for i, distance in distances.items() if distance == 1)),
+        meta_carbons=tuple(sorted(i for i, distance in distances.items() if distance == 2)),
         para_carbon=next(i for i, distance in distances.items() if distance == 3),
     )
+
+def _find_benzoic_acid_sites(
+    mol: Any, dependencies: Mapping[str, Any]
+) -> tuple[_BenzoicAcidSite, ...]:
+    """芳香環直結の中性COOHをすべて安全にマッピングする。"""
+    anionic_sites = _mapped_matches(mol, CARBOXYLATE_SMARTS, dependencies)
+    if any(_aromatic_acid_attachment(mol, acid) is not None for acid in anionic_sites):
+        raise DescriptorExtractionError(
+            "Aromatic carboxylates are unsupported: every aromatic acid site "
+            "must be a neutral COOH with an acidic H."
+        )
+    sites: list[_BenzoicAcidSite] = []
+    seen_carbons: set[int] = set()
+    for acid in _mapped_matches(mol, ACID_SMARTS, dependencies):
+        ipso = _aromatic_acid_attachment(mol, acid)
+        if ipso is None:
+            continue
+        if acid[1] in seen_carbons:
+            raise DescriptorExtractionError("The neutral COOH atom mapping is ambiguous.")
+        seen_carbons.add(acid[1])
+        try:
+            sites.append(_map_benzoic_acid_site(mol, acid, ipso))
+        except DescriptorExtractionError as exc:
+            raise DescriptorExtractionError(
+                f"Aromatic COOH at atom {acid[1]} cannot be mapped: {exc}"
+            ) from exc
+    if not sites:
+        raise DescriptorExtractionError(
+            "At least one neutral COOH directly bonded to a six-membered "
+            "all-carbon aromatic ring is required; aliphatic acids are ignored."
+        )
+    return tuple(sites)
+
+def _find_benzoic_acid_site(
+    mol: Any, dependencies: Mapping[str, Any]
+) -> _BenzoicAcidSite:
+    """単一酸点を必要とする既存コード用。複数酸点を任意に選ばない。"""
+    sites = _find_benzoic_acid_sites(mol, dependencies)
+    if len(sites) != 1:
+        raise DescriptorExtractionError(
+            f"Found {len(sites)} aromatic COOH sites; use the multi-site API."
+        )
+    return sites[0]
+
 
 
 import math
@@ -1453,7 +1153,6 @@ class GaussianParseError(ValueError):
 
 def _numpy() -> Any:
     import numpy as np
-
     return np
 
 
@@ -1485,18 +1184,16 @@ def parse_fchk(path: Path | str, *, encoding: str = "utf-8") -> dict[str, Any]:
 def parse_fchk_text(text: str) -> dict[str, Any]:
     """Read all labeled fchk fields and normalize commonly needed quantities.
 
-    Returned keys include fields, atomic_numbers, coordinates_bohr,
-    coordinates_angstrom, charge, multiplicity, number_of_alpha_electrons,
-    number_of_beta_electrons, alpha_orbital_energies_hartree,
-    beta_orbital_energies_hartree, dipole_au, polarizability_au, atomic_masses_u,
-    frequencies_cm1, and displacements. Optional missing properties are None.
-    """
+Returned keys include fields, atomic_numbers, coordinates_bohr,
+coordinates_angstrom, charge, multiplicity, number_of_alpha_electrons,
+number_of_beta_electrons, alpha_orbital_energies_hartree,
+beta_orbital_energies_hartree, dipole_au, polarizability_au, atomic_masses_u,
+frequencies_cm1, and displacements. Optional missing properties are None.
+"""
     np = _numpy()
     lines = text.splitlines()
     if len(lines) < 3:
-        raise GaussianParseError(
-            "The fchk file lacks its title, method and data records."
-        )
+        raise GaussianParseError("The fchk file lacks its title, method and data records.")
     fields: dict[str, Any] = {}
     normalized_labels: dict[str, str] = {}
     field_types: dict[str, str] = {}
@@ -1508,9 +1205,7 @@ def parse_fchk_text(text: str) -> dict[str, Any]:
             continue
         header = _fchk_header(line)
         if header is None:
-            raise GaussianParseError(
-                f"Malformed fchk field header at line {index + 1}."
-            )
+            raise GaussianParseError(f"Malformed fchk field header at line {index + 1}.")
         label, dtype, payload = header
         key = " ".join(label.casefold().split())
         previous_label = normalized_labels.get(key)
@@ -1546,9 +1241,7 @@ def parse_fchk_text(text: str) -> dict[str, Any]:
         values: list[Any] = []
         while len(values) < count:
             if index >= len(lines) or _fchk_header(lines[index]) is not None:
-                raise GaussianParseError(
-                    f"Truncated fchk array {label}: expected {count} values."
-                )
+                raise GaussianParseError(f"Truncated fchk array {label}: expected {count} values.")
             data_line = lines[index]
             index += 1
             if dtype in {"I", "R"}:
@@ -1559,9 +1252,7 @@ def parse_fchk_text(text: str) -> dict[str, Any]:
                         for token in tokens
                     )
                 except ValueError as exc:
-                    raise GaussianParseError(
-                        f"Malformed numeric fchk array {label}."
-                    ) from exc
+                    raise GaussianParseError(f"Malformed numeric fchk array {label}.") from exc
             elif dtype == "L":
                 logicals = data_line.strip().replace(" ", "")
                 if any(value.upper() not in {"T", "F"} for value in logicals):
@@ -1572,20 +1263,18 @@ def parse_fchk_text(text: str) -> dict[str, Any]:
                 width, per_line = (12, 5) if dtype == "C" else (8, 9)
                 remaining = min(count - len(values), per_line)
                 padded = data_line.ljust(remaining * width)
-                values.extend(
-                    padded[start * width : (start + 1) * width].rstrip()
-                    for start in range(remaining)
-                )
+                values.extend(padded[start * width:(start + 1) * width].rstrip()
+                              for start in range(remaining))
             if len(values) > count:
                 raise GaussianParseError(f"Too many values in fchk array {label}.")
         value = np.asarray(
             values, dtype={"I": int, "R": float, "L": bool}.get(dtype, object)
         )
         if previous_label is not None:
-            if field_types[key] != dtype or not np.array_equal(
-                fields[previous_label], value
-            ):
-                raise GaussianParseError(f"Conflicting duplicate fchk field: {label}.")
+            if field_types[key] != dtype or not np.array_equal(fields[previous_label], value):
+                raise GaussianParseError(
+                    f"Conflicting duplicate fchk field: {label}."
+                )
         else:
             normalized_labels[key] = label
             field_types[key] = dtype
@@ -1608,21 +1297,15 @@ def parse_fchk_text(text: str) -> dict[str, Any]:
     atomic_numbers = np.asarray(raw_atomic_numbers, dtype=int)
     coordinates = np.asarray(field("Current Cartesian coordinates", True), dtype=float)
     if atomic_numbers.shape != (natoms,) or coordinates.shape != (3 * natoms,):
-        raise GaussianParseError(
-            "fchk atom numbers or Cartesian coordinate count is inconsistent."
-        )
+        raise GaussianParseError("fchk atom numbers or Cartesian coordinate count is inconsistent.")
     if np.any(atomic_numbers <= 0) or np.any(atomic_numbers > 118):
         raise GaussianParseError("fchk contains ghost/dummy/invalid atomic numbers.")
     coordinates = coordinates.reshape(natoms, 3)
     charge, multiplicity = field("Charge", True), field("Multiplicity", True)
-    if (
-        not isinstance(charge, int)
-        or not isinstance(multiplicity, int)
-        or multiplicity < 1
-    ):
+    if not isinstance(charge, int) or not isinstance(multiplicity, int) or multiplicity < 1:
         raise GaussianParseError("Invalid fchk charge or multiplicity.")
 
-    def optional_array(label: str, length: int | None = None) -> Any | None:
+    def optional_array(label: str, length: int | None = None) -> np.ndarray | None:
         raw = field(label)
         if raw is None:
             return None
@@ -1636,32 +1319,21 @@ def parse_fchk_text(text: str) -> dict[str, Any]:
     if polarizability is not None:
         xx, xy, yy, xz, yz, zz = polarizability
         polarizability = np.asarray([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]])
-    nalpha, nbeta = field("Number of alpha electrons"), field(
-        "Number of beta electrons"
-    )
+    nalpha, nbeta = field("Number of alpha electrons"), field("Number of beta electrons")
     for label, value in (("alpha", nalpha), ("beta", nbeta)):
         if value is not None and (not isinstance(value, int) or value < 0):
             raise GaussianParseError(f"Invalid number of {label} electrons in fchk.")
     nelectrons = field("Number of electrons")
     if nalpha is not None and nbeta is not None:
         if nelectrons is not None and nelectrons != nalpha + nbeta:
-            raise GaussianParseError(
-                "fchk alpha/beta counts disagree with Number of electrons."
-            )
+            raise GaussianParseError("fchk alpha/beta counts disagree with Number of electrons.")
         if nalpha < nbeta or nalpha - nbeta != multiplicity - 1:
-            raise GaussianParseError(
-                "fchk alpha/beta electron counts disagree with multiplicity."
-            )
+            raise GaussianParseError("fchk alpha/beta electron counts disagree with multiplicity.")
     alpha_energies = optional_array("Alpha Orbital Energies")
     beta_energies = optional_array("Beta Orbital Energies")
-    for label, energies, occupied in (
-        ("alpha", alpha_energies, nalpha),
-        ("beta", beta_energies, nbeta),
-    ):
+    for label, energies, occupied in (("alpha", alpha_energies, nalpha), ("beta", beta_energies, nbeta)):
         if energies is not None and occupied is not None and occupied > len(energies):
-            raise GaussianParseError(
-                f"fchk {label} occupied-electron count exceeds orbital count."
-            )
+            raise GaussianParseError(f"fchk {label} occupied-electron count exceeds orbital count.")
     masses = optional_array("Real atomic weights", natoms)
     if masses is not None and np.any(masses <= 0):
         raise GaussianParseError("fchk atomic masses must be positive.")
@@ -1682,36 +1354,29 @@ def parse_fchk_text(text: str) -> dict[str, Any]:
     elif vib_e2 is not None or vib_modes is not None:
         raise GaussianParseError("fchk vibration arrays lack Number of Normal Modes.")
     return {
-        "title": lines[0].rstrip(),
-        "header_lines": tuple(lines[:2]),
+        "title": lines[0].rstrip(), "header_lines": tuple(lines[:2]),
         "job_type": lines[1][:10].strip(),
-        "method": lines[1][10:40].strip(),
-        "basis": lines[1][40:70].strip(),
-        "fields": fields,
-        "atomic_numbers": atomic_numbers,
+        "method": lines[1][10:40].strip(), "basis": lines[1][40:70].strip(),
+        "fields": fields, "atomic_numbers": atomic_numbers,
         "coordinates_bohr": coordinates,
         "coordinates_angstrom": coordinates * BOHR_TO_ANGSTROM,
-        "charge": charge,
-        "multiplicity": multiplicity,
+        "charge": charge, "multiplicity": multiplicity,
         "total_energy_hartree": field("Total Energy"),
-        "number_of_alpha_electrons": nalpha,
-        "number_of_beta_electrons": nbeta,
+        "number_of_alpha_electrons": nalpha, "number_of_beta_electrons": nbeta,
         "alpha_orbital_energies_hartree": alpha_energies,
         "beta_orbital_energies_hartree": beta_energies,
-        "dipole_au": dipole,
-        "polarizability_au": polarizability,
+        "dipole_au": dipole, "polarizability_au": polarizability,
         "atomic_masses_u": masses,
-        "frequencies_cm1": frequencies,
-        "displacements": displacements,
+        "frequencies_cm1": frequencies, "displacements": displacements,
     }
 
 
 def select_final_gaussian_job(text: str) -> str:
     """Select only the final calculation/internal Link1 step, requiring success.
 
-    Starts recognized: internal-job Link1 markers and full Gaussian launch markers.
-    A trailing started/failed job is an error even if an earlier job succeeded.
-    """
+Starts recognized: internal-job Link1 markers and full Gaussian launch markers.
+A trailing started/failed job is an error even if an earlier job succeeded.
+"""
     lines = text.splitlines(keepends=True)
     starts = [0]
     for index, line in enumerate(lines):
@@ -1722,34 +1387,23 @@ def select_final_gaussian_job(text: str) -> str:
     start = max(starts)
     # Concatenated logs may omit the launch banner. In that case, a preceding
     # normal termination plus a new route is a safe additional boundary.
-    normals = [
-        index
-        for index, line in enumerate(lines)
-        if re.search(r"Normal termination of Gaussian", line)
-    ]
+    normals = [index for index, line in enumerate(lines)
+               if re.search(r"Normal termination of Gaussian", line)]
     if not normals:
         raise GaussianParseError("Gaussian log does not contain normal termination.")
     last_normal = normals[-1]
     if last_normal < start:
         raise GaussianParseError("The final Gaussian job is unfinished or failed.")
-    trailing = "".join(lines[last_normal + 1 :])
-    if re.search(
-        r"Error termination|Entering Gaussian|Link1:|^\s*#|SCF Done:|NAtoms=",
-        trailing,
-        re.M | re.I,
-    ):
-        raise GaussianParseError(
-            "A failed or unfinished Gaussian job follows the last normal termination."
-        )
+    trailing = "".join(lines[last_normal + 1:])
+    if re.search(r"Error termination|Entering Gaussian|Link1:|^\s*#|SCF Done:|NAtoms=", trailing, re.M | re.I):
+        raise GaussianParseError("A failed or unfinished Gaussian job follows the last normal termination.")
     if len(normals) > 1:
         previous_normal = normals[-2]
         if previous_normal >= start:
             start = previous_normal + 1
-    selected = "".join(lines[start : last_normal + 1])
+    selected = "".join(lines[start:last_normal + 1])
     if re.search(r"Error termination", selected, re.I):
-        raise GaussianParseError(
-            "The selected Gaussian job contains error termination."
-        )
+        raise GaussianParseError("The selected Gaussian job contains error termination.")
     return selected
 
 
@@ -1771,24 +1425,18 @@ def _combined_nbo_markers(text: str, marker: str) -> tuple[list[str], list[int]]
 def parse_npa_table(text: str, natoms: int | None = None) -> dict[str, Any]:
     """Parse the final complete combined-spin NPA summary, never a spin table."""
     np = _numpy()
-    lines, starts = _combined_nbo_markers(
-        text, "Summary of Natural Population Analysis"
-    )
+    lines, starts = _combined_nbo_markers(text, "Summary of Natural Population Analysis")
     if not starts:
-        raise GaussianParseError(
-            "No combined-spin Natural Population Analysis summary was found."
-        )
+        raise GaussianParseError("No combined-spin Natural Population Analysis summary was found.")
     charges: dict[int, float] = {}
     symbols: dict[int, str] = {}
     complete = False
-    for line in lines[starts[-1] + 1 :]:
+    for line in lines[starts[-1] + 1:]:
         row = re.match(r"^\s*([A-Z][a-z]?)\s+(\d+)\s+(\S+)", line)
         if row:
             atom = int(row[2]) - 1
             if atom < 0 or atom in charges:
-                raise GaussianParseError(
-                    "NPA table contains invalid or duplicate atom indices."
-                )
+                raise GaussianParseError("NPA table contains invalid or duplicate atom indices.")
             charges[atom] = _gaussian_float(row[3], "NPA charge")
             symbols[atom] = row[1]
         elif charges and re.match(r"^\s*\*?\s*Total\b", line, re.I):
@@ -1798,13 +1446,9 @@ def parse_npa_table(text: str, natoms: int | None = None) -> dict[str, Any]:
             break
     count = natoms if natoms is not None else len(charges)
     if not complete or count <= 0 or set(charges) != set(range(count)):
-        raise GaussianParseError(
-            "The final NPA table is incomplete or has inconsistent atom indices."
-        )
-    return {
-        "charges": np.asarray([charges[i] for i in range(count)]),
-        "symbols": tuple(symbols[i] for i in range(count)),
-    }
+        raise GaussianParseError("The final NPA table is incomplete or has inconsistent atom indices.")
+    return {"charges": np.asarray([charges[i] for i in range(count)]),
+            "symbols": tuple(symbols[i] for i in range(count))}
 
 
 def parse_npa_charges(text: str, natoms: int | None = None) -> dict[int, float]:
@@ -1815,26 +1459,20 @@ def parse_npa_charges(text: str, natoms: int | None = None) -> dict[int, float]:
 def parse_wiberg_matrix(text: str, natoms: int | None = None) -> Any:
     """Parse blocked NAO Wiberg data, irrespective of row/column orientation."""
     np = _numpy()
-    lines, starts = _combined_nbo_markers(
-        text, "Wiberg bond index matrix in the NAO basis:"
-    )
+    lines, starts = _combined_nbo_markers(text, "Wiberg bond index matrix in the NAO basis:")
     if not starts:
-        raise GaussianParseError(
-            "No combined-spin NAO Wiberg bond-index matrix was found."
-        )
+        raise GaussianParseError("No combined-spin NAO Wiberg bond-index matrix was found.")
     values: dict[tuple[int, int], float] = {}
     columns: tuple[int, ...] = ()
     complete = False
-    for line in lines[starts[-1] + 1 :]:
+    for line in lines[starts[-1] + 1:]:
         if "Wiberg bond index, Totals by atom:" in line:
             complete = True
             break
         header = re.fullmatch(r"\s*Atom\s+([\d\s]+)", line)
         if header:
             columns = tuple(int(value) - 1 for value in header[1].split())
-            if len(columns) != len(set(columns)) or any(
-                column < 0 for column in columns
-            ):
+            if len(columns) != len(set(columns)) or any(column < 0 for column in columns):
                 raise GaussianParseError("Invalid Wiberg matrix column header.")
             continue
         row = re.match(r"^\s*(\d+)\.?\s+([A-Z][a-z]?)\s+(.+)$", line)
@@ -1849,22 +1487,16 @@ def parse_wiberg_matrix(text: str, natoms: int | None = None) -> Any:
                 if value < -1e-8:
                     raise GaussianParseError("Wiberg bond index must be nonnegative.")
                 if key in values and not math.isclose(values[key], value, abs_tol=1e-8):
-                    raise GaussianParseError(
-                        "Conflicting repeated Wiberg matrix entry."
-                    )
+                    raise GaussianParseError("Conflicting repeated Wiberg matrix entry.")
                 values[key] = value
         elif values and line.strip() and not re.fullmatch(r"[\s=\-]+", line):
-            raise GaussianParseError(
-                "The final Wiberg table ended before its totals marker."
-            )
+            raise GaussianParseError("The final Wiberg table ended before its totals marker.")
     if not complete or not values:
         raise GaussianParseError("The final Wiberg matrix is incomplete.")
     inferred = max(max(pair) for pair in values) + 1
     count = natoms if natoms is not None else inferred
     if count < 1 or inferred != count:
-        raise GaussianParseError(
-            "Wiberg matrix size does not match the molecular atom count."
-        )
+        raise GaussianParseError("Wiberg matrix size does not match the molecular atom count.")
     matrix = np.full((count, count), np.nan)
     for (row, column), value in values.items():
         matrix[row, column] = value
@@ -1874,9 +1506,7 @@ def parse_wiberg_matrix(text: str, natoms: int | None = None) -> Any:
     if not np.all(np.isfinite(matrix)):
         raise GaussianParseError("Wiberg matrix has missing atom pairs.")
     if not np.allclose(matrix, matrix.T, rtol=0.0, atol=1.1e-4):
-        raise GaussianParseError(
-            "Wiberg matrix is inconsistent with a symmetric bond index."
-        )
+        raise GaussianParseError("Wiberg matrix is inconsistent with a symmetric bond index.")
     return (matrix + matrix.T) / 2.0
 
 
@@ -1884,9 +1514,7 @@ def last_standard_orientation(text: str) -> dict[str, Any]:
     """Return the final complete standard-orientation table in Angstroms."""
     np = _numpy()
     lines = text.splitlines()
-    starts = [
-        index for index, line in enumerate(lines) if "Standard orientation:" in line
-    ]
+    starts = [index for index, line in enumerate(lines) if "Standard orientation:" in line]
     if not starts:
         raise GaussianParseError("No Standard orientation table was found.")
     start = starts[-1]
@@ -1894,21 +1522,15 @@ def last_standard_orientation(text: str) -> dict[str, Any]:
     coordinates: list[list[float]] = []
     complete = False
     angstrom_units = False
-    for line in lines[start + 1 :]:
+    for line in lines[start + 1:]:
         if re.search(r"Coordinates\s*\(Angstroms\)", line, re.I):
             angstrom_units = True
-        row = re.fullmatch(
-            r"\s*(\d+)\s+(-?\d+)\s+(-?\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s*", line
-        )
+        row = re.fullmatch(r"\s*(\d+)\s+(-?\d+)\s+(-?\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s*", line)
         if row:
             if int(row[1]) != len(atom_numbers) + 1 or not 1 <= int(row[2]) <= 118:
-                raise GaussianParseError(
-                    "Invalid atom order/numbers in standard orientation."
-                )
+                raise GaussianParseError("Invalid atom order/numbers in standard orientation.")
             atom_numbers.append(int(row[2]))
-            coordinates.append(
-                [_gaussian_float(row[i], "Cartesian coordinate") for i in (4, 5, 6)]
-            )
+            coordinates.append([_gaussian_float(row[i], "Cartesian coordinate") for i in (4, 5, 6)])
         elif atom_numbers:
             if re.fullmatch(r"\s*-{5,}\s*", line):
                 complete = True
@@ -1917,30 +1539,24 @@ def last_standard_orientation(text: str) -> dict[str, Any]:
         raise GaussianParseError("The final Standard orientation table is incomplete.")
     if not angstrom_units:
         raise GaussianParseError("Standard orientation lacks verified Angstrom units.")
-    return {
-        "atomic_numbers": np.asarray(atom_numbers, dtype=int),
-        "coordinates_angstrom": np.asarray(coordinates, dtype=float),
-    }
+    return {"atomic_numbers": np.asarray(atom_numbers, dtype=int),
+            "coordinates_angstrom": np.asarray(coordinates, dtype=float)}
 
 
 def last_cartesian_orientation(text: str) -> dict[str, Any]:
     """Use the final standard orientation, or input orientation for NoSymm logs.
 
-    The returned orientation name identifies the displacement coordinate frame.
-    An incomplete final standard table is an error rather than an input fallback.
-    """
+The returned orientation name identifies the displacement coordinate frame.
+An incomplete final standard table is an error rather than an input fallback.
+"""
     if "Standard orientation:" in text:
         result = last_standard_orientation(text)
         result["orientation"] = "standard"
         return result
     starts = [match.start() for match in re.finditer(r"Input orientation:", text)]
     if not starts:
-        raise GaussianParseError(
-            "No Standard/Input Cartesian orientation table was found."
-        )
-    selected = text[starts[-1] :].replace(
-        "Input orientation:", "Standard orientation:", 1
-    )
+        raise GaussianParseError("No Standard/Input Cartesian orientation table was found.")
+    selected = text[starts[-1]:].replace("Input orientation:", "Standard orientation:", 1)
     result = last_standard_orientation(selected)
     result["orientation"] = "input"
     return result
@@ -1949,23 +1565,20 @@ def last_cartesian_orientation(text: str) -> dict[str, Any]:
 def parse_normal_modes(text: str, natoms: int | None = None) -> dict[str, Any]:
     """Parse the final harmonic analysis, including Freq=HPModes print layout.
 
-    Displacements have shape(mode,atom,xyz), in Gaussian's standard orientation.
-    If high precision and ordinary tables both exist, high precision is selected.
-    """
+Displacements have shape(mode,atom,xyz), in Gaussian's standard orientation.
+If high precision and ordinary tables both exist, high precision is selected.
+"""
     np = _numpy()
     lines = text.splitlines()
     if natoms is None:
         counts = re.findall(r"\bNAtoms=\s*(\d+)", text)
         if counts:
             natoms = int(counts[-1])
-    analysis_starts = [
-        index
-        for index, line in enumerate(lines)
-        if re.search(r"Harmonic frequencies", line, re.I)
-    ]
+    analysis_starts = [index for index, line in enumerate(lines)
+                       if re.search(r"Harmonic frequencies", line, re.I)]
     if analysis_starts:
-        lines = lines[analysis_starts[-1] :]
-    groups: dict[str, list[tuple[list[float], Any, Any]]] = {"standard": [], "high": []}
+        lines = lines[analysis_starts[-1]:]
+    groups: dict[str, list[tuple[list[float], np.ndarray, np.ndarray]]] = {"standard": [], "high": []}
     frequency_re = re.compile(r"^\s*Frequencies\s*-{2,3}\s*(.*?)\s*$")
     index = 0
     while index < len(lines):
@@ -1973,10 +1586,7 @@ def parse_normal_modes(text: str, natoms: int | None = None) -> dict[str, Any]:
         if match is None:
             index += 1
             continue
-        frequencies = [
-            _gaussian_float(token, "vibrational frequency")
-            for token in match[1].split()
-        ]
+        frequencies = [_gaussian_float(token, "vibrational frequency") for token in match[1].split()]
         if not frequencies:
             raise GaussianParseError("An empty frequency block was found.")
         index += 1
@@ -1986,21 +1596,14 @@ def parse_normal_modes(text: str, natoms: int | None = None) -> dict[str, Any]:
             if tokens[:3] == ["Atom", "AN", "X"]:
                 header = "standard"
                 break
-            if tokens[:3] in (
-                ["Coord", "Atom", "Element:"],
-                ["Coord", "Atom", "Element"],
-            ):
+            if tokens[:3] in (["Coord", "Atom", "Element:"], ["Coord", "Atom", "Element"]):
                 header = "high"
                 break
-            if frequency_re.match(lines[index]) or re.search(
-                r"Thermochemistry|Normal termination", lines[index]
-            ):
+            if frequency_re.match(lines[index]) or re.search(r"Thermochemistry|Normal termination", lines[index]):
                 break
             index += 1
         if header is None:
-            raise GaussianParseError(
-                "Frequency block lacks Cartesian normal-mode displacements."
-            )
+            raise GaussianParseError("Frequency block lacks Cartesian normal-mode displacements.")
         index += 1
         rows: dict[tuple[int, int], list[float]] = {}
         atomic_numbers: dict[int, int] = {}
@@ -2009,111 +1612,66 @@ def parse_normal_modes(text: str, natoms: int | None = None) -> dict[str, Any]:
             required_prefix = 2 if header == "standard" else 3
             # A following block begins with its integer mode-number headings;
             # those headings are not atom rows when natoms was not supplied.
-            if (
-                tokens
-                and len(tokens) <= len(frequencies)
-                and all(re.fullmatch(r"\d+", token) for token in tokens)
-            ):
+            if tokens and len(tokens) <= len(frequencies) and all(re.fullmatch(r"\d+", token) for token in tokens):
                 break
-            if len(tokens) < required_prefix or not all(
-                re.fullmatch(r"\d+", token) for token in tokens[:required_prefix]
-            ):
+            if len(tokens) < required_prefix or not all(re.fullmatch(r"\d+", token) for token in tokens[:required_prefix]):
                 break
-            if len(tokens) != required_prefix + (
-                3 * len(frequencies) if header == "standard" else len(frequencies)
-            ):
-                raise GaussianParseError(
-                    "Frequency/displacement block column count is inconsistent."
-                )
+            if len(tokens) != required_prefix + (3 * len(frequencies) if header == "standard" else len(frequencies)):
+                raise GaussianParseError("Frequency/displacement block column count is inconsistent.")
             if header == "standard":
                 atom, atomic_number = int(tokens[0]) - 1, int(tokens[1])
-                values = [
-                    _gaussian_float(token, "normal-mode displacement")
-                    for token in tokens[2:]
-                ]
+                values = [_gaussian_float(token, "normal-mode displacement") for token in tokens[2:]]
                 if (atom, 0) in rows:
-                    raise GaussianParseError(
-                        "Repeated atom in normal-mode displacement block."
-                    )
+                    raise GaussianParseError("Repeated atom in normal-mode displacement block.")
                 rows[(atom, 0)] = values
             else:
-                coordinate, atom, atomic_number = (
-                    int(tokens[0]) - 1,
-                    int(tokens[1]) - 1,
-                    int(tokens[2]),
-                )
+                coordinate, atom, atomic_number = int(tokens[0]) - 1, int(tokens[1]) - 1, int(tokens[2])
                 if coordinate not in {0, 1, 2} or (atom, coordinate) in rows:
-                    raise GaussianParseError(
-                        "Invalid/repeated Cartesian normal-mode coordinate."
-                    )
-                rows[(atom, coordinate)] = [
-                    _gaussian_float(token, "normal-mode displacement")
-                    for token in tokens[3:]
-                ]
+                    raise GaussianParseError("Invalid/repeated Cartesian normal-mode coordinate.")
+                rows[(atom, coordinate)] = [_gaussian_float(token, "normal-mode displacement") for token in tokens[3:]]
             if atom < 0 or not 1 <= atomic_number <= 118:
-                raise GaussianParseError(
-                    "Invalid atom index/element in normal-mode table."
-                )
+                raise GaussianParseError("Invalid atom index/element in normal-mode table.")
             if atom in atomic_numbers and atomic_numbers[atom] != atomic_number:
-                raise GaussianParseError(
-                    "Normal-mode table has inconsistent atom identities."
-                )
+                raise GaussianParseError("Normal-mode table has inconsistent atom identities.")
             atomic_numbers[atom] = atomic_number
             index += 1
-            if natoms is not None and len(rows) == natoms * (
-                1 if header == "standard" else 3
-            ):
+            if natoms is not None and len(rows) == natoms * (1 if header == "standard" else 3):
                 break
         count = natoms if natoms is not None else len(atomic_numbers)
         if count < 1 or set(atomic_numbers) != set(range(count)):
-            raise GaussianParseError(
-                "Normal-mode table is incomplete or has missing atoms."
-            )
+            raise GaussianParseError("Normal-mode table is incomplete or has missing atoms.")
         displacements = np.empty((len(frequencies), count, 3))
         if header == "standard":
             for atom in range(count):
-                displacements[:, atom, :] = np.asarray(rows[(atom, 0)]).reshape(
-                    len(frequencies), 3
-                )
+                displacements[:, atom, :] = np.asarray(rows[(atom, 0)]).reshape(len(frequencies), 3)
         else:
-            if set(rows) != {
-                (atom, coordinate) for atom in range(count) for coordinate in range(3)
-            }:
-                raise GaussianParseError(
-                    "High-precision mode table has missing coordinates."
-                )
+            if set(rows) != {(atom, coordinate) for atom in range(count) for coordinate in range(3)}:
+                raise GaussianParseError("High-precision mode table has missing coordinates.")
             for atom in range(count):
                 for coordinate in range(3):
                     displacements[:, atom, coordinate] = rows[(atom, coordinate)]
-        elements = np.asarray(
-            [atomic_numbers[atom] for atom in range(count)], dtype=int
-        )
+        elements = np.asarray([atomic_numbers[atom] for atom in range(count)], dtype=int)
         groups[header].append((frequencies, displacements, elements))
     precision = "high" if groups["high"] else "standard"
     blocks = groups[precision]
     if not blocks:
-        raise GaussianParseError(
-            "No harmonic frequencies with displacement vectors were found."
-        )
+        raise GaussianParseError("No harmonic frequencies with displacement vectors were found.")
     reference = blocks[0][2]
     if any(not np.array_equal(block[2], reference) for block in blocks):
         raise GaussianParseError("Atom identities change between normal-mode blocks.")
-    return {
-        "frequencies_cm1": np.asarray(
-            [value for block in blocks for value in block[0]]
-        ),
-        "displacements": np.concatenate([block[1] for block in blocks], axis=0),
-        "atomic_numbers": reference,
-        "precision": precision,
-    }
+    return {"frequencies_cm1": np.asarray([value for block in blocks for value in block[0]]),
+            "displacements": np.concatenate([block[1] for block in blocks], axis=0),
+            "atomic_numbers": reference, "precision": precision}
 
 
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Iterator, Sequence
 import math
 import subprocess
 import tempfile
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Iterator
+
 
 CUBE_BOHR_TO_ANGSTROM = 0.529177210903
 
@@ -2139,9 +1697,7 @@ def _import_cube_numpy() -> Any:
     try:
         import numpy as np
     except ImportError as exc:
-        raise CubeFeatureError(
-            "CUBE processing requires NumPy; install numpy."
-        ) from exc
+        raise CubeFeatureError("CUBE processing requires NumPy; install numpy.") from exc
     return np
 
 
@@ -2167,47 +1723,32 @@ def read_cube(
     np = _import_cube_numpy()
     if coordinate_unit not in {"bohr", "angstrom"}:
         raise CubeFeatureError("coordinate_unit must be 'bohr' or 'angstrom'.")
-    if (
-        not isinstance(max_grid_points, int)
-        or isinstance(max_grid_points, bool)
-        or max_grid_points < 8
-    ):
+    if not isinstance(max_grid_points, int) or isinstance(max_grid_points, bool) or max_grid_points < 8:
         raise CubeFeatureError("max_grid_points must be an integer >= 8.")
     source = Path(path)
     if not source.is_file():
         raise CubeFeatureError(f"CUBE file does not exist: {source}")
     try:
         with source.open("r", encoding="utf-8", errors="strict") as handle:
-            comments = (
-                handle.readline().rstrip("\r\n"),
-                handle.readline().rstrip("\r\n"),
-            )
+            comments = (handle.readline().rstrip("\r\n"), handle.readline().rstrip("\r\n"))
             header = handle.readline().split()
             if len(header) not in (4, 5):
-                raise CubeFeatureError(
-                    "CUBE atom/origin header must contain 4 or 5 fields."
-                )
+                raise CubeFeatureError("CUBE atom/origin header must contain 4 or 5 fields.")
             natoms = int(header[0])
             if natoms < 0:
-                raise CubeFeatureError(
-                    "Orbital/multiple-dataset CUBEs (negative NATOMS) are not density/ESP inputs."
-                )
+                raise CubeFeatureError("Orbital/multiple-dataset CUBEs (negative NATOMS) are not density/ESP inputs.")
             if natoms == 0 or natoms > 10_000:
                 raise CubeFeatureError("CUBE must contain 1..10000 atoms.")
             nval = int(header[4]) if len(header) == 5 else 1
             if nval != 1:
-                raise CubeFeatureError(
-                    "Only one scalar per grid point (NVAL=1) is supported."
-                )
+                raise CubeFeatureError("Only one scalar per grid point (NVAL=1) is supported.")
             origin = np.array([_cube_float(v) for v in header[1:4]], dtype=float)
             counts: list[int] = []
             axes: list[list[float]] = []
             for _ in range(3):
                 row = handle.readline().split()
                 if len(row) != 4:
-                    raise CubeFeatureError(
-                        "Each CUBE grid header must contain 4 fields."
-                    )
+                    raise CubeFeatureError("Each CUBE grid header must contain 4 fields.")
                 signed_count = int(row[0])
                 if signed_count < 0 and coordinate_unit == "bohr":
                     raise CubeFeatureError(
@@ -2215,16 +1756,12 @@ def read_cube(
                         "For a verified Angstrom dialect, pass coordinate_unit='angstrom'."
                     )
                 if abs(signed_count) < 2:
-                    raise CubeFeatureError(
-                        "Each CUBE axis must contain at least two grid points."
-                    )
+                    raise CubeFeatureError("Each CUBE axis must contain at least two grid points.")
                 counts.append(abs(signed_count))
                 axes.append([_cube_float(v) for v in row[1:]])
             npoints = math.prod(counts)
             if npoints > max_grid_points:
-                raise CubeFeatureError(
-                    f"CUBE has {npoints} points, exceeding max_grid_points={max_grid_points}."
-                )
+                raise CubeFeatureError(f"CUBE has {npoints} points, exceeding max_grid_points={max_grid_points}.")
             atomic_numbers = np.empty(natoms, dtype=int)
             coordinates = np.empty((natoms, 3), dtype=float)
             for atom_index in range(natoms):
@@ -2233,9 +1770,7 @@ def read_cube(
                     raise CubeFeatureError(f"Malformed CUBE atom row {atom_index + 1}.")
                 atomic_number = int(row[0])
                 if not 1 <= atomic_number <= 118:
-                    raise CubeFeatureError(
-                        "Dummy, ghost, and unknown nuclei are not supported in CUBEs."
-                    )
+                    raise CubeFeatureError("Dummy, ghost, and unknown nuclei are not supported in CUBEs.")
                 if not math.isfinite(_cube_float(row[1])):
                     raise CubeFeatureError("CUBE nuclear charge is not finite.")
                 atomic_numbers[atom_index] = atomic_number
@@ -2248,17 +1783,11 @@ def read_cube(
                 if not tokens:
                     continue
                 if offset + len(tokens) > npoints:
-                    raise CubeFeatureError(
-                        "CUBE contains more field values than its grid specifies."
-                    )
-                flat_values[offset : offset + len(tokens)] = [
-                    _cube_float(v) for v in tokens
-                ]
+                    raise CubeFeatureError("CUBE contains more field values than its grid specifies.")
+                flat_values[offset:offset + len(tokens)] = [_cube_float(v) for v in tokens]
                 offset += len(tokens)
             if offset != npoints:
-                raise CubeFeatureError(
-                    f"Truncated CUBE data: expected {npoints} scalar values, got {offset}."
-                )
+                raise CubeFeatureError(f"Truncated CUBE data: expected {npoints} scalar values, got {offset}.")
             scale = CUBE_BOHR_TO_ANGSTROM if coordinate_unit == "bohr" else 1.0
             cube = CubeGrid(
                 origin_angstrom=origin * scale,
@@ -2290,22 +1819,12 @@ def _validate_cube_grid(cube: CubeGrid) -> None:
         raise CubeFeatureError("Invalid CUBE origin or grid-step vectors.")
     if numbers.ndim != 1 or len(numbers) == 0 or coordinates.shape != (len(numbers), 3):
         raise CubeFeatureError("Invalid CUBE atom data.")
-    if any(
-        not np.isfinite(array).all() for array in (origin, axes, coordinates, values)
-    ):
-        raise CubeFeatureError(
-            "CUBE grid, geometry, or scalar field contains nonfinite values."
-        )
-    if (
-        not np.issubdtype(numbers.dtype, np.integer)
-        or np.any(numbers < 1)
-        or np.any(numbers > 118)
-    ):
+    if any(not np.isfinite(array).all() for array in (origin, axes, coordinates, values)):
+        raise CubeFeatureError("CUBE grid, geometry, or scalar field contains nonfinite values.")
+    if not np.issubdtype(numbers.dtype, np.integer) or np.any(numbers < 1) or np.any(numbers > 118):
         raise CubeFeatureError("CUBE atomic numbers must be integers in 1..118.")
     if abs(float(np.linalg.det(axes))) < 1e-12:
-        raise CubeFeatureError(
-            "CUBE grid-step vectors have zero/singular voxel volume."
-        )
+        raise CubeFeatureError("CUBE grid-step vectors have zero/singular voxel volume.")
 
 
 def validate_cube_geometry(
@@ -2348,8 +1867,8 @@ def _surface_point_chunks(
         for start in range(0, x_end, slab_size):
             stop = min(start + slab_size, x_end)
             if axis == 0:
-                a, b = rho[start:stop], rho[start + 1 : stop + 1]
-                ea, eb = esp[start:stop], esp[start + 1 : stop + 1]
+                a, b = rho[start:stop], rho[start + 1:stop + 1]
+                ea, eb = esp[start:stop], esp[start + 1:stop + 1]
             elif axis == 1:
                 a, b = rho[start:stop, :-1, :], rho[start:stop, 1:, :]
                 ea, eb = esp[start:stop, :-1, :], esp[start:stop, 1:, :]
@@ -2365,13 +1884,9 @@ def _surface_point_chunks(
             indices[:, 0] += start
             indices[:, axis] += fraction
             points = density_cube.origin_angstrom + indices @ density_cube.axes_angstrom
-            interpolated_esp = ea[index_tuple] + fraction * (
-                eb[index_tuple] - ea[index_tuple]
-            )
+            interpolated_esp = ea[index_tuple] + fraction * (eb[index_tuple] - ea[index_tuple])
             for offset in range(0, len(points), point_chunk_size):
-                yield points[offset : offset + point_chunk_size], interpolated_esp[
-                    offset : offset + point_chunk_size
-                ]
+                yield points[offset:offset + point_chunk_size], interpolated_esp[offset:offset + point_chunk_size]
 
 
 def density_volume(cube: CubeGrid, density_isovalue: float = 0.001) -> float:
@@ -2387,26 +1902,13 @@ def density_volume(cube: CubeGrid, density_isovalue: float = 0.001) -> float:
         raise CubeFeatureError("density_isovalue must be positive and finite.")
     rho = cube.values
     if float(np.min(rho)) < -1e-8:
-        raise CubeFeatureError(
-            "Density CUBE has negative values; a total electron density is required."
-        )
-    for boundary in (
-        rho[0],
-        rho[-1],
-        rho[:, 0],
-        rho[:, -1],
-        rho[:, :, 0],
-        rho[:, :, -1],
-    ):
+        raise CubeFeatureError("Density CUBE has negative values; a total electron density is required.")
+    for boundary in (rho[0], rho[-1], rho[:, 0], rho[:, -1], rho[:, :, 0], rho[:, :, -1]):
         if np.any(boundary >= density_isovalue):
-            raise CubeFeatureError(
-                "Density isosurface intersects the CUBE boundary; regenerate a larger box."
-            )
+            raise CubeFeatureError("Density isosurface intersects the CUBE boundary; regenerate a larger box.")
     occupied_points = int(np.count_nonzero(rho >= density_isovalue))
     if occupied_points == 0:
-        raise CubeFeatureError(
-            "Density CUBE contains no points at/above the requested isovalue."
-        )
+        raise CubeFeatureError("Density CUBE contains no points at/above the requested isovalue.")
     voxel_volume = abs(float(np.linalg.det(cube.axes_angstrom)))
     return occupied_points * voxel_volume
 
@@ -2432,6 +1934,44 @@ def calculate_density_surface_features(
     discretized surface-sampling estimate in Hartree/e; compare molecules using
     identical density isovalues and grid resolution.
     """
+    result = calculate_density_surface_features_for_sites(
+        density_cube, esp_cube, [(acidic_h_index, carbonyl_o_index)],
+        density_isovalue=density_isovalue,
+        local_radius_angstrom=local_radius_angstrom,
+    )
+    if result["site_issues"][0]:
+        # The single-site API historically raises when either local patch is
+        # unavailable. Keep that behavior while multisite callers can retain
+        # the global surface descriptors and report a missing local column.
+        raise CubeFeatureError(next(iter(result["site_issues"][0].values())))
+    return {
+        "molecular_volume_angstrom3": result["molecular_volume_angstrom3"],
+        **result["site_features"][0],
+        "mpi_hartree_per_e": result["mpi_hartree_per_e"],
+    }
+
+
+def calculate_density_surface_features_for_sites(
+    density_cube: CubeGrid,
+    esp_cube: CubeGrid,
+    site_atom_pairs: Sequence[tuple[int, int]],
+    *,
+    density_isovalue: float = 0.001,
+    local_radius_angstrom: float = 2.0,
+) -> dict[str, Any]:
+    """Compute global surface descriptors and local ESP for every acid site.
+
+    Each pair contains zero-based (acidic H, carbonyl O) CUBE atom indices.
+    Returned ``site_features`` and ``site_issues`` lists preserve the number
+    and order of input sites, including duplicate pairs. Each issue dictionary
+    maps an unavailable local descriptor column to its error message; the
+    corresponding value is omitted from that site's feature dictionary.
+
+    Missing local patches do not discard MPI or volume. Invalid target atoms,
+    incompatible grids/geometries, and incomplete density surfaces still
+    raise CubeFeatureError. One surface traversal computes MPI and all local
+    extrema; a shared target nucleus is evaluated only once.
+    """
     np = _import_cube_numpy()
     _validate_cube_grid(density_cube)
     _validate_cube_grid(esp_cube)
@@ -2442,83 +1982,82 @@ def calculate_density_surface_features(
     if density_cube.values.shape != esp_cube.values.shape:
         raise CubeFeatureError("Density and ESP CUBE grid shapes differ.")
     for field in ("origin_angstrom", "axes_angstrom"):
-        if not np.allclose(
-            getattr(density_cube, field), getattr(esp_cube, field), rtol=0.0, atol=1e-6
-        ):
-            raise CubeFeatureError(
-                f"Density and ESP CUBE {field} differ; regenerate on the same grid."
-            )
+        if not np.allclose(getattr(density_cube, field), getattr(esp_cube, field), rtol=0.0, atol=1e-6):
+            raise CubeFeatureError(f"Density and ESP CUBE {field} differ; regenerate on the same grid.")
     validate_cube_geometry(
-        esp_cube,
-        density_cube.atomic_numbers,
-        density_cube.atom_coordinates_angstrom,
+        esp_cube, density_cube.atomic_numbers, density_cube.atom_coordinates_angstrom,
         atol_angstrom=1e-5,
     )
-    for index, element, label in (
-        (acidic_h_index, 1, "acidic H"),
-        (carbonyl_o_index, 8, "carbonyl O"),
-    ):
-        if (
-            not isinstance(index, int)
-            or isinstance(index, bool)
-            or not 0 <= index < len(density_cube.atomic_numbers)
-        ):
-            raise CubeFeatureError(
-                f"Invalid zero-based CUBE index for {label}: {index}."
-            )
-        if int(density_cube.atomic_numbers[index]) != element:
-            raise CubeFeatureError(
-                f"The selected CUBE {label} has the wrong atomic number."
-            )
+    try:
+        pairs = list(site_atom_pairs)
+    except TypeError as exc:
+        raise CubeFeatureError("site_atom_pairs must be a nonempty sequence of (acidic H, carbonyl O) pairs.") from exc
+    if not pairs:
+        raise CubeFeatureError("site_atom_pairs must contain at least one acid site.")
+    targets: dict[int, int] = {}
+    for pair in pairs:
+        if not isinstance(pair, (tuple, list)) or len(pair) != 2:
+            raise CubeFeatureError("Each acid site must be an (acidic H, carbonyl O) index pair.")
+        for index, element, label in ((pair[0], 1, "acidic H"), (pair[1], 8, "carbonyl O")):
+            if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(density_cube.atomic_numbers):
+                raise CubeFeatureError(f"Invalid zero-based CUBE index for {label}: {index}.")
+            if int(density_cube.atomic_numbers[index]) != element:
+                raise CubeFeatureError(f"The selected CUBE {label} has the wrong atomic number.")
+            targets[index] = element
     volume = density_volume(density_cube, density_isovalue)
-    max_h, min_o = -math.inf, math.inf
-    count_h = count_o = 0
+    extrema = {index: -math.inf if element == 1 else math.inf for index, element in targets.items()}
+    counts = {index: 0 for index in targets}
     mpi_absolute_sum = 0.0
     mpi_sample_count = 0
     geometry = density_cube.atom_coordinates_angstrom
     radius_squared = local_radius_angstrom**2
-    for points, potentials in _surface_point_chunks(
-        density_cube, esp_cube, density_isovalue
-    ):
+    for points, potentials in _surface_point_chunks(density_cube, esp_cube, density_isovalue):
         mpi_absolute_sum += float(np.sum(np.abs(potentials), dtype=float))
         mpi_sample_count += len(potentials)
-        for target_index in (acidic_h_index, carbonyl_o_index):
-            target_distance_squared = np.sum(
-                (points - geometry[target_index]) ** 2, axis=1
+        # The nearest-nucleus distance is shared by all local patches. A small
+        # tolerance preserves the previous behavior of accepting equidistant
+        # intersections for each target instead of choosing an arbitrary atom.
+        nearest_distance_squared = np.full(len(points), math.inf, dtype=float)
+        for nucleus in geometry:
+            distance_squared = np.sum((points - nucleus)**2, axis=1)
+            np.minimum(nearest_distance_squared, distance_squared, out=nearest_distance_squared)
+        for target_index, element in targets.items():
+            target_distance_squared = np.sum((points - geometry[target_index])**2, axis=1)
+            owned = (target_distance_squared <= radius_squared) & (
+                nearest_distance_squared >= target_distance_squared - 1e-10
             )
-            candidate = target_distance_squared <= radius_squared
-            if not np.any(candidate):
-                continue
-            local_points = points[candidate]
-            local_potentials = potentials[candidate]
-            distance_squared = target_distance_squared[candidate]
-            owned = np.ones(len(local_points), dtype=bool)
-            # Loop over nuclei instead of allocating an Npoints x Natoms x 3 array.
-            for atom_index, nucleus in enumerate(geometry):
-                if atom_index == target_index:
-                    continue
-                other_distance_squared = np.sum((local_points - nucleus) ** 2, axis=1)
-                owned &= other_distance_squared >= distance_squared - 1e-10
             if np.any(owned):
-                if target_index == acidic_h_index:
-                    max_h = max(max_h, float(np.max(local_potentials[owned])))
-                    count_h += int(np.count_nonzero(owned))
+                local_potentials = potentials[owned]
+                if element == 1:
+                    extrema[target_index] = max(extrema[target_index], float(np.max(local_potentials)))
                 else:
-                    min_o = min(min_o, float(np.min(local_potentials[owned])))
-                    count_o += int(np.count_nonzero(owned))
+                    extrema[target_index] = min(extrema[target_index], float(np.min(local_potentials)))
+                counts[target_index] += int(np.count_nonzero(owned))
     if not mpi_sample_count:
         raise CubeFeatureError("The density isosurface has no grid-edge intersections.")
-    if not count_h or not count_o:
-        missing = "acidic H" if not count_h else "carbonyl O"
-        raise CubeFeatureError(
-            f"No density-isosurface intersection belongs to {missing} within "
-            f"{local_radius_angstrom:g} Angstrom. Check atom mapping, radius, and grid resolution."
-        )
+    site_features: list[dict[str, float]] = []
+    site_issues: list[dict[str, str]] = []
+    for h_index, o_index in pairs:
+        features: dict[str, float] = {}
+        issues: dict[str, str] = {}
+        for index, label, column in (
+            (h_index, "acidic H", "esp_max_acidic_h_hartree_per_e"),
+            (o_index, "carbonyl O", "esp_min_carbonyl_o_hartree_per_e"),
+        ):
+            if counts[index]:
+                features[column] = extrema[index]
+            else:
+                issues[column] = (
+                    f"No density-isosurface intersection belongs to {label} within "
+                    f"{local_radius_angstrom:g} Angstrom. Check atom mapping, radius, and grid resolution."
+                )
+        site_features.append(features)
+        site_issues.append(issues)
     return {
         "molecular_volume_angstrom3": volume,
-        "esp_max_acidic_h_hartree_per_e": max_h,
-        "esp_min_carbonyl_o_hartree_per_e": min_o,
         "mpi_hartree_per_e": mpi_absolute_sum / mpi_sample_count,
+        "site_features": site_features,
+        "site_issues": site_issues,
     }
 
 
@@ -2551,12 +2090,8 @@ def generate_cube_pair(
         raise CubeFeatureError(f"fchk file does not exist: {fchk}")
     destination = Path(output_dir).resolve()
     output_stem = fchk.stem if file_stem is None else file_stem
-    if (
-        not isinstance(output_stem, str)
-        or not output_stem
-        or Path(output_stem).name != output_stem
-        or output_stem in {".", ".."}
-    ):
+    if (not isinstance(output_stem, str) or not output_stem
+            or Path(output_stem).name != output_stem or output_stem in {".", ".."}):
         raise CubeFeatureError("cubegen file_stem must be a plain filename stem.")
     executable = str(cubegen_path)
     # An explicit relative executable path is resolved before cwd is changed;
@@ -2569,49 +2104,19 @@ def generate_cube_pair(
     esp_path = generated_dir / f"{output_stem}_esp.cube"
     # cubefile2 + npts=-1 makes the ESP cube use exactly the density cube grid.
     jobs = (
-        [
-            executable,
-            str(nprocs),
-            "FDensity=SCF",
-            str(fchk),
-            str(density_path),
-            str(npts),
-            "h",
-        ],
-        [
-            executable,
-            str(nprocs),
-            "Potential=SCF",
-            str(fchk),
-            str(esp_path),
-            "-1",
-            "h",
-            str(density_path),
-        ],
+        [executable, str(nprocs), "FDensity=SCF", str(fchk), str(density_path), str(npts), "h"],
+        [executable, str(nprocs), "Potential=SCF", str(fchk), str(esp_path), "-1", "h", str(density_path)],
     )
     for command, expected_path in zip(jobs, (density_path, esp_path)):
         try:
             completed = subprocess.run(
-                command,
-                cwd=str(generated_dir),
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                errors="replace",
-                shell=False,
-                timeout=timeout_seconds,
-                check=False,
+                command, cwd=str(generated_dir), stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                errors="replace", shell=False, timeout=timeout_seconds, check=False,
             )
         except (OSError, subprocess.SubprocessError) as exc:
-            raise CubeFeatureError(
-                f"cubegen failed for {expected_path.name}: {exc}"
-            ) from exc
-        if (
-            completed.returncode != 0
-            or not expected_path.is_file()
-            or expected_path.stat().st_size == 0
-        ):
+            raise CubeFeatureError(f"cubegen failed for {expected_path.name}: {exc}") from exc
+        if completed.returncode != 0 or not expected_path.is_file() or expected_path.stat().st_size == 0:
             detail = (completed.stderr or completed.stdout).strip()[-2000:]
             raise CubeFeatureError(
                 f"cubegen failed for {expected_path.name} (exit={completed.returncode}): {detail}"
