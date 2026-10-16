@@ -376,7 +376,7 @@ def _default_hyperparameter_grid(model_name: str) -> dict[str, list[Any]]:
             "model__max_depth": [None, 5, 10, 20],
             "model__max_features": ["sqrt", 0.5, 1.0],
             "model__min_samples_split": [2, 5, 10],
-            "model__min_samples_leaf": [1, 2, 4],
+            "model__min_samples_leaf": [1, 2, 4, 8],
             "model__bootstrap": [True, False],
         }
     if model_name == "ridge":
