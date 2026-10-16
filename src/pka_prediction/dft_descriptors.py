@@ -2160,11 +2160,16 @@ def parse_normal_modes(text: str, natoms: int | None = None) -> dict[str, Any]:
         if re.search(r"Harmonic frequencies", line, re.I)
     ]
     if analysis_starts:
+<<<<<<< HEAD
         lines = lines[analysis_starts[-1] :]
     groups: dict[str, list[tuple[list[float], Any, Any]]] = {
         "standard": [],
         "high": [],
     }
+=======
+        lines = lines[analysis_starts[-1]:]
+    groups: dict[str, list[tuple[list[float], Any, Any]]] = {"standard": [], "high": []}
+>>>>>>> 7840eb660bb8011975177a1bec9d67be8b7ccc6c
     frequency_re = re.compile(r"^\s*Frequencies\s*-{2,3}\s*(.*?)\s*$")
     index = 0
     while index < len(lines):
