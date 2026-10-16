@@ -1305,7 +1305,7 @@ frequencies_cm1, and displacements. Optional missing properties are None.
     if not isinstance(charge, int) or not isinstance(multiplicity, int) or multiplicity < 1:
         raise GaussianParseError("Invalid fchk charge or multiplicity.")
 
-    def optional_array(label: str, length: int | None = None) -> np.ndarray | None:
+    def optional_array(label: str, length: int | None = None) -> Any | None:
         raw = field(label)
         if raw is None:
             return None
@@ -1578,7 +1578,7 @@ If high precision and ordinary tables both exist, high precision is selected.
                        if re.search(r"Harmonic frequencies", line, re.I)]
     if analysis_starts:
         lines = lines[analysis_starts[-1]:]
-    groups: dict[str, list[tuple[list[float], np.ndarray, np.ndarray]]] = {"standard": [], "high": []}
+    groups: dict[str, list[tuple[list[float], Any, Any]]] = {"standard": [], "high": []}
     frequency_re = re.compile(r"^\s*Frequencies\s*-{2,3}\s*(.*?)\s*$")
     index = 0
     while index < len(lines):

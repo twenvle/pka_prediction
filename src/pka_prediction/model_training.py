@@ -12,24 +12,23 @@ from typing import Any, Mapping, Sequence
 
 # この版で使用する量子化学・分子記述子。
 FEATURE_COLUMNS = (
-    "sasa",
-    "polar",
-    "oh_distance",
-    "co_distance",
-    "co_double_distance",
-    "h_charge",
-    "o_single_charge",
-    "o_double_charge",
-    "cooh_charge",
-    "oh_bond",
-    "co_bond",
-    "co_double_bond",
-    "homo_ev",
-    "lumo_ev",
-    "dipole_moment_debye",
-    "logp",
-    "hbd",
-    "hba",
+    "MolWt",
+    "MolLogP",
+    "MolMR",
+    "TPSA",
+    "NumRotatableBonds",
+    "FractionCSP3",
+    "TotalSubstituentCount",
+    "OrthoSubstituentCount",
+    "MetaSubstituentCount",
+    "ParaSubstituentCount",
+    "HalogenAtomCount",
+    "AdditionalAromaticRingCount",
+    "GasteigerCharge_MetaCMean",
+    "GasteigerCharge_ParaC",
+    "npa_acidic_h", "npa_hydroxyl_o", "npa_carbonyl_o", "npa_carboxyl_c",
+    "npa_ipso_c", "npa_para_c", "esp_min_carbonyl_o_hartree_per_e",
+    "homo_ev", "lumo_ev", "homo_lumo_gap_ev", "dipole_moment_debye",
 )
 
 MODEL_NAMES = ("xgboost", "svr", "random_forest", "ridge")
@@ -246,7 +245,7 @@ def _import_dependencies() -> dict[str, Any]:
         from sklearn.impute import SimpleImputer
         from sklearn.linear_model import Ridge
         from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-        from sklearn.model_selection import GridSearchCV, KFold
+        from sklearn.model_selection import GridSearchCV, KFold, RepeatedKFold
         from sklearn.pipeline import Pipeline
         from sklearn.preprocessing import StandardScaler
         from sklearn.svm import SVR
@@ -268,6 +267,7 @@ def _import_dependencies() -> dict[str, Any]:
         "r2_score": r2_score,
         "GridSearchCV": GridSearchCV,
         "KFold": KFold,
+        "RepeatedKFold": RepeatedKFold,
         "Pipeline": Pipeline,
         "StandardScaler": StandardScaler,
         "SVR": SVR,
@@ -707,9 +707,9 @@ def train_model(
     if smallest_outer_train_size < config.inner_splits:
         raise ValueError("外側foldの学習行数よりinner_splitsが大きいため探索できません")
 
-    outer_cv = deps["KFold"](
+    outer_cv = deps["RepeatedKFold"](
         n_splits=config.n_splits,
-        shuffle=True,
+        n_repeats=5,
         random_state=config.random_state,
     )
     pd = deps["pd"]

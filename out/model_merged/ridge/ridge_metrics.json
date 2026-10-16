@@ -1,0 +1,1020 @@
+{
+  "model": "ridge",
+  "target_column": "pka_value",
+  "metrics_note": "train_metricsは外側5foldの学習指標平均、test_metricsは外側foldの検証指標平均です。各外側foldの学習データ内だけでハイパーパラメータ探索を行っています。",
+  "feature_count": 60,
+  "features": [
+    "MolWt",
+    "MolLogP",
+    "MolMR",
+    "TPSA",
+    "LabuteASA",
+    "NumHAcceptors",
+    "NumHDonors",
+    "NumHeteroatoms",
+    "NumRotatableBonds",
+    "FractionCSP3",
+    "HeavyAtomCount",
+    "BertzCT",
+    "TotalSubstituentCount",
+    "OrthoSubstituentCount",
+    "MetaSubstituentCount",
+    "ParaSubstituentCount",
+    "HalogenAtomCount",
+    "HeteroatomsOutsideCOOH",
+    "AdditionalAromaticRingCount",
+    "SubstituentSP3CarbonCount",
+    "GasteigerCharge_AcidicH",
+    "GasteigerCharge_HydroxylO",
+    "GasteigerCharge_CarbonylO",
+    "GasteigerCharge_CarboxylC",
+    "GasteigerCharge_IpsoC",
+    "GasteigerCharge_OrthoCMean",
+    "GasteigerCharge_MetaCMean",
+    "GasteigerCharge_ParaC",
+    "EState_HydroxylO",
+    "EState_CarbonylO",
+    "npa_acidic_h",
+    "npa_hydroxyl_o",
+    "npa_carbonyl_o",
+    "npa_carboxyl_c",
+    "npa_ipso_c",
+    "npa_ortho_c_mean",
+    "npa_meta_c_mean",
+    "npa_para_c",
+    "wiberg_oh",
+    "wiberg_co_single",
+    "wiberg_co_double",
+    "wiberg_aryl_cooh",
+    "esp_max_acidic_h_hartree_per_e",
+    "esp_min_carbonyl_o_hartree_per_e",
+    "homo_ev",
+    "lumo_ev",
+    "homo_lumo_gap_ev",
+    "dipole_moment_debye",
+    "isotropic_polarizability_au",
+    "mpi_hartree_per_e",
+    "molecular_volume_angstrom3",
+    "cooh_local_sasa_angstrom2",
+    "cooh_buried_volume_percent",
+    "oh_bond_length_angstrom",
+    "co_double_bond_length_angstrom",
+    "co_single_bond_length_angstrom",
+    "aryl_cooh_bond_length_angstrom",
+    "benzene_cooh_plane_angle_deg",
+    "oh_stretch_frequency_cm1",
+    "co_double_stretch_frequency_cm1"
+  ],
+  "data": {
+    "input_file": "D:\\kikuchi\\pka_prediction\\data\\processed\\labeled\\merged_dataset.csv",
+    "rows_read": 180,
+    "rows_used": 180,
+    "rows_excluded": 0,
+    "rows_with_invalid_smiles": 0,
+    "all_missing_features_filled_with_zero": []
+  },
+  "cross_validation": {
+    "method": "NestedKFold",
+    "n_splits": 5,
+    "inner_splits": 5,
+    "shuffle": true,
+    "random_state": 42,
+    "train_metrics_summary": {
+      "mean": {
+        "r2": 0.7392984361664091,
+        "rmse": 0.5417837534700084,
+        "mae": 0.34963335436502174
+      },
+      "std": {
+        "r2": 0.02617388686355961,
+        "rmse": 0.05726052494591644,
+        "mae": 0.020675534635675945
+      }
+    },
+    "validation_metrics_summary": {
+      "mean": {
+        "r2": 0.6355261652118815,
+        "rmse": 0.6259265655350966,
+        "mae": 0.4357495427913357
+      },
+      "std": {
+        "r2": 0.0768352480368775,
+        "rmse": 0.21584478743430213,
+        "mae": 0.07603809813474867
+      }
+    },
+    "fold_metrics": [
+      {
+        "fold": 1,
+        "train_rows": 144,
+        "validation_rows": 36,
+        "train_metrics": {
+          "r2": 0.7377832471141708,
+          "rmse": 0.5703671364372491,
+          "mae": 0.3628253672171013
+        },
+        "validation_metrics": {
+          "r2": 0.651277896722854,
+          "rmse": 0.47878290544489366,
+          "mae": 0.36184373953011595
+        },
+        "inner_cv_best_mae": 0.4327556771452324,
+        "best_parameters": {
+          "model__alpha": 30.0
+        }
+      },
+      {
+        "fold": 2,
+        "train_rows": 144,
+        "validation_rows": 36,
+        "train_metrics": {
+          "r2": 0.7308426086634578,
+          "rmse": 0.5546866613761534,
+          "mae": 0.33557301029865527
+        },
+        "validation_metrics": {
+          "r2": 0.681800099481852,
+          "rmse": 0.583979181506091,
+          "mae": 0.4530361990381112
+        },
+        "inner_cv_best_mae": 0.39083540242566156,
+        "best_parameters": {
+          "model__alpha": 30.0
+        }
+      },
+      {
+        "fold": 3,
+        "train_rows": 144,
+        "validation_rows": 36,
+        "train_metrics": {
+          "r2": 0.7772592146643057,
+          "rmse": 0.4398507593546734,
+          "mae": 0.3214435509219867
+        },
+        "validation_metrics": {
+          "r2": 0.48999145442950875,
+          "rmse": 1.0437164180382532,
+          "mae": 0.5673253464139829
+        },
+        "inner_cv_best_mae": 0.3691070422356828,
+        "best_parameters": {
+          "model__alpha": 100.0
+        }
+      },
+      {
+        "fold": 4,
+        "train_rows": 144,
+        "validation_rows": 36,
+        "train_metrics": {
+          "r2": 0.6977460620204459,
+          "rmse": 0.6119639975839943,
+          "mae": 0.38072764989861035
+        },
+        "validation_metrics": {
+          "r2": 0.7123638056255814,
+          "rmse": 0.4451163147925066,
+          "mae": 0.3593699078511931
+        },
+        "inner_cv_best_mae": 0.43975149553381276,
+        "best_parameters": {
+          "model__alpha": 100.0
+        }
+      },
+      {
+        "fold": 5,
+        "train_rows": 144,
+        "validation_rows": 36,
+        "train_metrics": {
+          "r2": 0.7528610483696655,
+          "rmse": 0.5320502125979717,
+          "mae": 0.34759719348875506
+        },
+        "validation_metrics": {
+          "r2": 0.6421975697996113,
+          "rmse": 0.5780380078937387,
+          "mae": 0.4371725211232754
+        },
+        "inner_cv_best_mae": 0.41276262327096785,
+        "best_parameters": {
+          "model__alpha": 10.0
+        }
+      }
+    ]
+  },
+  "train_metrics": {
+    "r2": 0.7392984361664091,
+    "rmse": 0.5417837534700084,
+    "mae": 0.34963335436502174
+  },
+  "test_metrics": {
+    "r2": 0.6355261652118815,
+    "rmse": 0.6259265655350966,
+    "mae": 0.4357495427913357
+  },
+  "train_metrics_std": {
+    "r2": 0.02617388686355961,
+    "rmse": 0.05726052494591644,
+    "mae": 0.020675534635675945
+  },
+  "test_metrics_std": {
+    "r2": 0.0768352480368775,
+    "rmse": 0.21584478743430213,
+    "mae": 0.07603809813474867
+  },
+  "hyperparameter_search": {
+    "strategy": "GridSearchCV",
+    "scoring": "neg_mean_absolute_error",
+    "candidate_count": 17,
+    "search_space": {
+      "model__alpha": [
+        0.0001,
+        0.0003,
+        0.001,
+        0.003,
+        0.01,
+        0.03,
+        0.1,
+        0.3,
+        1.0,
+        3.0,
+        10.0,
+        30.0,
+        100.0,
+        300.0,
+        1000.0,
+        3000.0,
+        10000.0
+      ]
+    },
+    "final_best_parameters": {
+      "model__alpha": 100.0
+    },
+    "final_inner_cv_best_mae": 0.4165821594506114,
+    "final_candidate_results": [
+      {
+        "rank": 1,
+        "mean_cv_mae": 0.4165821594506114,
+        "std_cv_mae": 0.09015467888293567,
+        "parameters": {
+          "model__alpha": 100.0
+        }
+      },
+      {
+        "rank": 2,
+        "mean_cv_mae": 0.4189489591563107,
+        "std_cv_mae": 0.11038613932334168,
+        "parameters": {
+          "model__alpha": 300.0
+        }
+      },
+      {
+        "rank": 3,
+        "mean_cv_mae": 0.4251402617320843,
+        "std_cv_mae": 0.06970079537785527,
+        "parameters": {
+          "model__alpha": 30.0
+        }
+      },
+      {
+        "rank": 4,
+        "mean_cv_mae": 0.4408042248848285,
+        "std_cv_mae": 0.058137490874078455,
+        "parameters": {
+          "model__alpha": 10.0
+        }
+      },
+      {
+        "rank": 5,
+        "mean_cv_mae": 0.46524872303421716,
+        "std_cv_mae": 0.06026466882785512,
+        "parameters": {
+          "model__alpha": 3.0
+        }
+      },
+      {
+        "rank": 6,
+        "mean_cv_mae": 0.4736175326798242,
+        "std_cv_mae": 0.1352717581865492,
+        "parameters": {
+          "model__alpha": 1000.0
+        }
+      },
+      {
+        "rank": 7,
+        "mean_cv_mae": 0.4868630075523944,
+        "std_cv_mae": 0.06723259012348322,
+        "parameters": {
+          "model__alpha": 1.0
+        }
+      },
+      {
+        "rank": 8,
+        "mean_cv_mae": 0.4901756885084647,
+        "std_cv_mae": 0.047800031290965224,
+        "parameters": {
+          "model__alpha": 0.0001
+        }
+      },
+      {
+        "rank": 9,
+        "mean_cv_mae": 0.49058931539102374,
+        "std_cv_mae": 0.04715232046998078,
+        "parameters": {
+          "model__alpha": 0.0003
+        }
+      },
+      {
+        "rank": 10,
+        "mean_cv_mae": 0.4971755275827399,
+        "std_cv_mae": 0.048783255781854114,
+        "parameters": {
+          "model__alpha": 0.001
+        }
+      },
+      {
+        "rank": 11,
+        "mean_cv_mae": 0.5081559206398222,
+        "std_cv_mae": 0.06811462230259024,
+        "parameters": {
+          "model__alpha": 0.3
+        }
+      },
+      {
+        "rank": 12,
+        "mean_cv_mae": 0.5116115964256505,
+        "std_cv_mae": 0.05401559361205291,
+        "parameters": {
+          "model__alpha": 0.003
+        }
+      },
+      {
+        "rank": 13,
+        "mean_cv_mae": 0.5210046625540008,
+        "std_cv_mae": 0.06803676444593541,
+        "parameters": {
+          "model__alpha": 0.1
+        }
+      },
+      {
+        "rank": 14,
+        "mean_cv_mae": 0.5253944953559395,
+        "std_cv_mae": 0.06325043942716035,
+        "parameters": {
+          "model__alpha": 0.01
+        }
+      },
+      {
+        "rank": 15,
+        "mean_cv_mae": 0.5285182118482006,
+        "std_cv_mae": 0.06783930699783547,
+        "parameters": {
+          "model__alpha": 0.03
+        }
+      },
+      {
+        "rank": 16,
+        "mean_cv_mae": 0.5975835498009868,
+        "std_cv_mae": 0.15213575449148797,
+        "parameters": {
+          "model__alpha": 3000.0
+        }
+      },
+      {
+        "rank": 17,
+        "mean_cv_mae": 0.7300532940500294,
+        "std_cv_mae": 0.16422760603154613,
+        "parameters": {
+          "model__alpha": 10000.0
+        }
+      }
+    ]
+  },
+  "saved_model_training": "full_dataset_after_nested_cross_validation_and_final_hyperparameter_search",
+  "base_model_parameters": {},
+  "model_parameters": {
+    "alpha": 100.0,
+    "copy_X": true,
+    "fit_intercept": true,
+    "max_iter": null,
+    "positive": false,
+    "random_state": null,
+    "solver": "auto",
+    "tol": 0.0001
+  },
+  "package_versions": {
+    "model_package": "1.8.0",
+    "scikit_learn": "1.8.0",
+    "pandas": "2.3.3"
+  },
+  "ridge_feature_contributions": {
+    "interpretation": "standardized_coefficientは他の特徴量を一定としたとき、特徴量が学習データ内で1標準偏差増加した場合の予測値の変化量です。絶対値が大きいほどRidgeモデル内での影響が大きく、正負は予測値を上げる・下げる方向を示します。因果関係を示す値ではありません。",
+    "standardized_intercept": 3.617422284798243,
+    "original_scale_intercept": 9188.351063465421,
+    "standardized_coefficients_by_feature": {
+      "MolWt": -0.045338560391672306,
+      "MolLogP": -0.022374555899304493,
+      "MolMR": 0.0019648647520607012,
+      "TPSA": -0.06776576636094765,
+      "LabuteASA": -0.022469232874309245,
+      "NumHAcceptors": -0.010044226131584637,
+      "NumHDonors": -0.10828834035422016,
+      "NumHeteroatoms": -0.015099218025037367,
+      "NumRotatableBonds": 0.010663183806708127,
+      "FractionCSP3": 0.03285554136591998,
+      "HeavyAtomCount": -0.002088519947821145,
+      "BertzCT": -0.00801385319545126,
+      "TotalSubstituentCount": -0.055337504769815644,
+      "OrthoSubstituentCount": -0.062473897841329847,
+      "MetaSubstituentCount": -0.007822123097979292,
+      "ParaSubstituentCount": -0.016324785779438213,
+      "HalogenAtomCount": 0.036411421761827524,
+      "HeteroatomsOutsideCOOH": -0.01509921802503722,
+      "AdditionalAromaticRingCount": 0.030594581372218536,
+      "SubstituentSP3CarbonCount": 0.023670747345772136,
+      "GasteigerCharge_AcidicH": -0.0412725483924006,
+      "GasteigerCharge_HydroxylO": -0.041264528430151826,
+      "GasteigerCharge_CarbonylO": -0.04126472247461059,
+      "GasteigerCharge_CarboxylC": -0.0411758282809331,
+      "GasteigerCharge_IpsoC": -0.04080982524781069,
+      "GasteigerCharge_OrthoCMean": -0.035531095360717115,
+      "GasteigerCharge_MetaCMean": 0.005399965301903154,
+      "GasteigerCharge_ParaC": -0.005797444402642177,
+      "EState_HydroxylO": 0.02048859065459181,
+      "EState_CarbonylO": 0.015529746277290752,
+      "npa_acidic_h": -0.057597197519566164,
+      "npa_hydroxyl_o": -0.06406545380789679,
+      "npa_carbonyl_o": -0.07666320492854971,
+      "npa_carboxyl_c": -0.029449318559276627,
+      "npa_ipso_c": 0.015158924495143925,
+      "npa_ortho_c_mean": -0.02004287054240128,
+      "npa_meta_c_mean": 0.05839990626243021,
+      "npa_para_c": -0.0034886598816572714,
+      "wiberg_oh": 0.060816420108287715,
+      "wiberg_co_single": -0.043435899855148605,
+      "wiberg_co_double": -0.024201357035207528,
+      "wiberg_aryl_cooh": 0.008864637642672495,
+      "esp_max_acidic_h_hartree_per_e": -0.03569545559446513,
+      "esp_min_carbonyl_o_hartree_per_e": -0.02352461296084932,
+      "homo_ev": 0.10067971778130512,
+      "lumo_ev": 0.027995395480917597,
+      "homo_lumo_gap_ev": -0.07701882327757718,
+      "dipole_moment_debye": 0.0640017849078304,
+      "isotropic_polarizability_au": 0.0017065532106451534,
+      "mpi_hartree_per_e": 0.0005315718059811344,
+      "molecular_volume_angstrom3": -0.004841948237653316,
+      "cooh_local_sasa_angstrom2": 0.005171111570154347,
+      "cooh_buried_volume_percent": 0.008893544489756646,
+      "oh_bond_length_angstrom": -0.04421802645575551,
+      "co_double_bond_length_angstrom": 0.030577993935637156,
+      "co_single_bond_length_angstrom": 0.033968528510217554,
+      "aryl_cooh_bond_length_angstrom": -0.03517312132912414,
+      "benzene_cooh_plane_angle_deg": 0.019990734773537307,
+      "oh_stretch_frequency_cm1": 0.022208397094725284,
+      "co_double_stretch_frequency_cm1": -0.042288097697856936
+    },
+    "original_scale_coefficients_by_feature": {
+      "MolWt": -0.0012302836333350678,
+      "MolLogP": -0.030315788925216573,
+      "MolMR": 0.00024840997623099475,
+      "TPSA": -0.0027044214142857353,
+      "LabuteASA": -0.0018434280451596673,
+      "NumHAcceptors": -0.008866814746244992,
+      "NumHDonors": -0.14315649297532526,
+      "NumHeteroatoms": -0.008909385905412402,
+      "NumRotatableBonds": 0.009469412605872314,
+      "FractionCSP3": 0.30114987066580057,
+      "HeavyAtomCount": -0.0009032690508478355,
+      "BertzCT": -7.789076219925976e-05,
+      "TotalSubstituentCount": -0.055205611863419705,
+      "OrthoSubstituentCount": -0.0931807533481226,
+      "MetaSubstituentCount": -0.01097225189812901,
+      "ParaSubstituentCount": -0.03328272684879257,
+      "HalogenAtomCount": 0.03007998778922206,
+      "HeteroatomsOutsideCOOH": -0.008909385905412315,
+      "AdditionalAromaticRingCount": 0.084414336364715,
+      "SubstituentSP3CarbonCount": 0.02160528103733544,
+      "GasteigerCharge_AcidicH": -32428.8992672759,
+      "GasteigerCharge_HydroxylO": -773.1470752377763,
+      "GasteigerCharge_CarbonylO": -477.42484885264867,
+      "GasteigerCharge_CarboxylC": -19.963132506893,
+      "GasteigerCharge_IpsoC": -1.7383857157867737,
+      "GasteigerCharge_OrthoCMean": -0.6079442034332676,
+      "GasteigerCharge_MetaCMean": 0.07524855289339413,
+      "GasteigerCharge_ParaC": -0.07127744566350436,
+      "EState_HydroxylO": 0.10804939624947897,
+      "EState_CarbonylO": 0.07145827654440286,
+      "npa_acidic_h": -15.62112818506946,
+      "npa_hydroxyl_o": -6.780094259198748,
+      "npa_carbonyl_o": -4.3151179687692,
+      "npa_carboxyl_c": -5.302291875089306,
+      "npa_ipso_c": 0.33707176168968245,
+      "npa_ortho_c_mean": -0.12120598477279987,
+      "npa_meta_c_mean": 0.3404239110109911,
+      "npa_para_c": -0.01763879752288014,
+      "wiberg_oh": 14.87031241815314,
+      "wiberg_co_single": -3.11732986299464,
+      "wiberg_co_double": -0.8689782691132124,
+      "wiberg_aryl_cooh": 0.3222536026571552,
+      "esp_max_acidic_h_hartree_per_e": -3.7030847418830946,
+      "esp_min_carbonyl_o_hartree_per_e": -1.8968797079715116,
+      "homo_ev": 0.1667099648143833,
+      "lumo_ev": 0.057162625745435305,
+      "homo_lumo_gap_ev": -0.12596433857121359,
+      "dipole_moment_debye": 0.03693528562882571,
+      "isotropic_polarizability_au": 4.825404219699731e-05,
+      "mpi_hartree_per_e": 0.10810500206670914,
+      "molecular_volume_angstrom3": -0.0001425990643421977,
+      "cooh_local_sasa_angstrom2": 0.0009146085978231105,
+      "cooh_buried_volume_percent": 0.003673267186977827,
+      "oh_bond_length_angstrom": -61.5620170586597,
+      "co_double_bond_length_angstrom": 6.961485546864788,
+      "co_single_bond_length_angstrom": 6.798399986094645,
+      "aryl_cooh_bond_length_angstrom": -3.9764775783155617,
+      "benzene_cooh_plane_angle_deg": 0.0009183698500238683,
+      "oh_stretch_frequency_cm1": 0.002190400477996816,
+      "co_double_stretch_frequency_cm1": -0.0021269764055952835
+    },
+    "ranking_by_absolute_standardized_coefficient": [
+      {
+        "feature": "NumHDonors",
+        "standardized_coefficient": -0.10828834035422016,
+        "absolute_standardized_coefficient": 0.10828834035422016,
+        "original_scale_coefficient": -0.14315649297532526,
+        "direction": "negative",
+        "absolute_contribution_rank": 1
+      },
+      {
+        "feature": "homo_ev",
+        "standardized_coefficient": 0.10067971778130512,
+        "absolute_standardized_coefficient": 0.10067971778130512,
+        "original_scale_coefficient": 0.1667099648143833,
+        "direction": "positive",
+        "absolute_contribution_rank": 2
+      },
+      {
+        "feature": "homo_lumo_gap_ev",
+        "standardized_coefficient": -0.07701882327757718,
+        "absolute_standardized_coefficient": 0.07701882327757718,
+        "original_scale_coefficient": -0.12596433857121359,
+        "direction": "negative",
+        "absolute_contribution_rank": 3
+      },
+      {
+        "feature": "npa_carbonyl_o",
+        "standardized_coefficient": -0.07666320492854971,
+        "absolute_standardized_coefficient": 0.07666320492854971,
+        "original_scale_coefficient": -4.3151179687692,
+        "direction": "negative",
+        "absolute_contribution_rank": 4
+      },
+      {
+        "feature": "TPSA",
+        "standardized_coefficient": -0.06776576636094765,
+        "absolute_standardized_coefficient": 0.06776576636094765,
+        "original_scale_coefficient": -0.0027044214142857353,
+        "direction": "negative",
+        "absolute_contribution_rank": 5
+      },
+      {
+        "feature": "npa_hydroxyl_o",
+        "standardized_coefficient": -0.06406545380789679,
+        "absolute_standardized_coefficient": 0.06406545380789679,
+        "original_scale_coefficient": -6.780094259198748,
+        "direction": "negative",
+        "absolute_contribution_rank": 6
+      },
+      {
+        "feature": "dipole_moment_debye",
+        "standardized_coefficient": 0.0640017849078304,
+        "absolute_standardized_coefficient": 0.0640017849078304,
+        "original_scale_coefficient": 0.03693528562882571,
+        "direction": "positive",
+        "absolute_contribution_rank": 7
+      },
+      {
+        "feature": "OrthoSubstituentCount",
+        "standardized_coefficient": -0.062473897841329847,
+        "absolute_standardized_coefficient": 0.062473897841329847,
+        "original_scale_coefficient": -0.0931807533481226,
+        "direction": "negative",
+        "absolute_contribution_rank": 8
+      },
+      {
+        "feature": "wiberg_oh",
+        "standardized_coefficient": 0.060816420108287715,
+        "absolute_standardized_coefficient": 0.060816420108287715,
+        "original_scale_coefficient": 14.87031241815314,
+        "direction": "positive",
+        "absolute_contribution_rank": 9
+      },
+      {
+        "feature": "npa_meta_c_mean",
+        "standardized_coefficient": 0.05839990626243021,
+        "absolute_standardized_coefficient": 0.05839990626243021,
+        "original_scale_coefficient": 0.3404239110109911,
+        "direction": "positive",
+        "absolute_contribution_rank": 10
+      },
+      {
+        "feature": "npa_acidic_h",
+        "standardized_coefficient": -0.057597197519566164,
+        "absolute_standardized_coefficient": 0.057597197519566164,
+        "original_scale_coefficient": -15.62112818506946,
+        "direction": "negative",
+        "absolute_contribution_rank": 11
+      },
+      {
+        "feature": "TotalSubstituentCount",
+        "standardized_coefficient": -0.055337504769815644,
+        "absolute_standardized_coefficient": 0.055337504769815644,
+        "original_scale_coefficient": -0.055205611863419705,
+        "direction": "negative",
+        "absolute_contribution_rank": 12
+      },
+      {
+        "feature": "MolWt",
+        "standardized_coefficient": -0.045338560391672306,
+        "absolute_standardized_coefficient": 0.045338560391672306,
+        "original_scale_coefficient": -0.0012302836333350678,
+        "direction": "negative",
+        "absolute_contribution_rank": 13
+      },
+      {
+        "feature": "oh_bond_length_angstrom",
+        "standardized_coefficient": -0.04421802645575551,
+        "absolute_standardized_coefficient": 0.04421802645575551,
+        "original_scale_coefficient": -61.5620170586597,
+        "direction": "negative",
+        "absolute_contribution_rank": 14
+      },
+      {
+        "feature": "wiberg_co_single",
+        "standardized_coefficient": -0.043435899855148605,
+        "absolute_standardized_coefficient": 0.043435899855148605,
+        "original_scale_coefficient": -3.11732986299464,
+        "direction": "negative",
+        "absolute_contribution_rank": 15
+      },
+      {
+        "feature": "co_double_stretch_frequency_cm1",
+        "standardized_coefficient": -0.042288097697856936,
+        "absolute_standardized_coefficient": 0.042288097697856936,
+        "original_scale_coefficient": -0.0021269764055952835,
+        "direction": "negative",
+        "absolute_contribution_rank": 16
+      },
+      {
+        "feature": "GasteigerCharge_AcidicH",
+        "standardized_coefficient": -0.0412725483924006,
+        "absolute_standardized_coefficient": 0.0412725483924006,
+        "original_scale_coefficient": -32428.8992672759,
+        "direction": "negative",
+        "absolute_contribution_rank": 17
+      },
+      {
+        "feature": "GasteigerCharge_CarbonylO",
+        "standardized_coefficient": -0.04126472247461059,
+        "absolute_standardized_coefficient": 0.04126472247461059,
+        "original_scale_coefficient": -477.42484885264867,
+        "direction": "negative",
+        "absolute_contribution_rank": 18
+      },
+      {
+        "feature": "GasteigerCharge_HydroxylO",
+        "standardized_coefficient": -0.041264528430151826,
+        "absolute_standardized_coefficient": 0.041264528430151826,
+        "original_scale_coefficient": -773.1470752377763,
+        "direction": "negative",
+        "absolute_contribution_rank": 19
+      },
+      {
+        "feature": "GasteigerCharge_CarboxylC",
+        "standardized_coefficient": -0.0411758282809331,
+        "absolute_standardized_coefficient": 0.0411758282809331,
+        "original_scale_coefficient": -19.963132506893,
+        "direction": "negative",
+        "absolute_contribution_rank": 20
+      },
+      {
+        "feature": "GasteigerCharge_IpsoC",
+        "standardized_coefficient": -0.04080982524781069,
+        "absolute_standardized_coefficient": 0.04080982524781069,
+        "original_scale_coefficient": -1.7383857157867737,
+        "direction": "negative",
+        "absolute_contribution_rank": 21
+      },
+      {
+        "feature": "HalogenAtomCount",
+        "standardized_coefficient": 0.036411421761827524,
+        "absolute_standardized_coefficient": 0.036411421761827524,
+        "original_scale_coefficient": 0.03007998778922206,
+        "direction": "positive",
+        "absolute_contribution_rank": 22
+      },
+      {
+        "feature": "esp_max_acidic_h_hartree_per_e",
+        "standardized_coefficient": -0.03569545559446513,
+        "absolute_standardized_coefficient": 0.03569545559446513,
+        "original_scale_coefficient": -3.7030847418830946,
+        "direction": "negative",
+        "absolute_contribution_rank": 23
+      },
+      {
+        "feature": "GasteigerCharge_OrthoCMean",
+        "standardized_coefficient": -0.035531095360717115,
+        "absolute_standardized_coefficient": 0.035531095360717115,
+        "original_scale_coefficient": -0.6079442034332676,
+        "direction": "negative",
+        "absolute_contribution_rank": 24
+      },
+      {
+        "feature": "aryl_cooh_bond_length_angstrom",
+        "standardized_coefficient": -0.03517312132912414,
+        "absolute_standardized_coefficient": 0.03517312132912414,
+        "original_scale_coefficient": -3.9764775783155617,
+        "direction": "negative",
+        "absolute_contribution_rank": 25
+      },
+      {
+        "feature": "co_single_bond_length_angstrom",
+        "standardized_coefficient": 0.033968528510217554,
+        "absolute_standardized_coefficient": 0.033968528510217554,
+        "original_scale_coefficient": 6.798399986094645,
+        "direction": "positive",
+        "absolute_contribution_rank": 26
+      },
+      {
+        "feature": "FractionCSP3",
+        "standardized_coefficient": 0.03285554136591998,
+        "absolute_standardized_coefficient": 0.03285554136591998,
+        "original_scale_coefficient": 0.30114987066580057,
+        "direction": "positive",
+        "absolute_contribution_rank": 27
+      },
+      {
+        "feature": "AdditionalAromaticRingCount",
+        "standardized_coefficient": 0.030594581372218536,
+        "absolute_standardized_coefficient": 0.030594581372218536,
+        "original_scale_coefficient": 0.084414336364715,
+        "direction": "positive",
+        "absolute_contribution_rank": 28
+      },
+      {
+        "feature": "co_double_bond_length_angstrom",
+        "standardized_coefficient": 0.030577993935637156,
+        "absolute_standardized_coefficient": 0.030577993935637156,
+        "original_scale_coefficient": 6.961485546864788,
+        "direction": "positive",
+        "absolute_contribution_rank": 29
+      },
+      {
+        "feature": "npa_carboxyl_c",
+        "standardized_coefficient": -0.029449318559276627,
+        "absolute_standardized_coefficient": 0.029449318559276627,
+        "original_scale_coefficient": -5.302291875089306,
+        "direction": "negative",
+        "absolute_contribution_rank": 30
+      },
+      {
+        "feature": "lumo_ev",
+        "standardized_coefficient": 0.027995395480917597,
+        "absolute_standardized_coefficient": 0.027995395480917597,
+        "original_scale_coefficient": 0.057162625745435305,
+        "direction": "positive",
+        "absolute_contribution_rank": 31
+      },
+      {
+        "feature": "wiberg_co_double",
+        "standardized_coefficient": -0.024201357035207528,
+        "absolute_standardized_coefficient": 0.024201357035207528,
+        "original_scale_coefficient": -0.8689782691132124,
+        "direction": "negative",
+        "absolute_contribution_rank": 32
+      },
+      {
+        "feature": "SubstituentSP3CarbonCount",
+        "standardized_coefficient": 0.023670747345772136,
+        "absolute_standardized_coefficient": 0.023670747345772136,
+        "original_scale_coefficient": 0.02160528103733544,
+        "direction": "positive",
+        "absolute_contribution_rank": 33
+      },
+      {
+        "feature": "esp_min_carbonyl_o_hartree_per_e",
+        "standardized_coefficient": -0.02352461296084932,
+        "absolute_standardized_coefficient": 0.02352461296084932,
+        "original_scale_coefficient": -1.8968797079715116,
+        "direction": "negative",
+        "absolute_contribution_rank": 34
+      },
+      {
+        "feature": "LabuteASA",
+        "standardized_coefficient": -0.022469232874309245,
+        "absolute_standardized_coefficient": 0.022469232874309245,
+        "original_scale_coefficient": -0.0018434280451596673,
+        "direction": "negative",
+        "absolute_contribution_rank": 35
+      },
+      {
+        "feature": "MolLogP",
+        "standardized_coefficient": -0.022374555899304493,
+        "absolute_standardized_coefficient": 0.022374555899304493,
+        "original_scale_coefficient": -0.030315788925216573,
+        "direction": "negative",
+        "absolute_contribution_rank": 36
+      },
+      {
+        "feature": "oh_stretch_frequency_cm1",
+        "standardized_coefficient": 0.022208397094725284,
+        "absolute_standardized_coefficient": 0.022208397094725284,
+        "original_scale_coefficient": 0.002190400477996816,
+        "direction": "positive",
+        "absolute_contribution_rank": 37
+      },
+      {
+        "feature": "EState_HydroxylO",
+        "standardized_coefficient": 0.02048859065459181,
+        "absolute_standardized_coefficient": 0.02048859065459181,
+        "original_scale_coefficient": 0.10804939624947897,
+        "direction": "positive",
+        "absolute_contribution_rank": 38
+      },
+      {
+        "feature": "npa_ortho_c_mean",
+        "standardized_coefficient": -0.02004287054240128,
+        "absolute_standardized_coefficient": 0.02004287054240128,
+        "original_scale_coefficient": -0.12120598477279987,
+        "direction": "negative",
+        "absolute_contribution_rank": 39
+      },
+      {
+        "feature": "benzene_cooh_plane_angle_deg",
+        "standardized_coefficient": 0.019990734773537307,
+        "absolute_standardized_coefficient": 0.019990734773537307,
+        "original_scale_coefficient": 0.0009183698500238683,
+        "direction": "positive",
+        "absolute_contribution_rank": 40
+      },
+      {
+        "feature": "ParaSubstituentCount",
+        "standardized_coefficient": -0.016324785779438213,
+        "absolute_standardized_coefficient": 0.016324785779438213,
+        "original_scale_coefficient": -0.03328272684879257,
+        "direction": "negative",
+        "absolute_contribution_rank": 41
+      },
+      {
+        "feature": "EState_CarbonylO",
+        "standardized_coefficient": 0.015529746277290752,
+        "absolute_standardized_coefficient": 0.015529746277290752,
+        "original_scale_coefficient": 0.07145827654440286,
+        "direction": "positive",
+        "absolute_contribution_rank": 42
+      },
+      {
+        "feature": "npa_ipso_c",
+        "standardized_coefficient": 0.015158924495143925,
+        "absolute_standardized_coefficient": 0.015158924495143925,
+        "original_scale_coefficient": 0.33707176168968245,
+        "direction": "positive",
+        "absolute_contribution_rank": 43
+      },
+      {
+        "feature": "NumHeteroatoms",
+        "standardized_coefficient": -0.015099218025037367,
+        "absolute_standardized_coefficient": 0.015099218025037367,
+        "original_scale_coefficient": -0.008909385905412402,
+        "direction": "negative",
+        "absolute_contribution_rank": 44
+      },
+      {
+        "feature": "HeteroatomsOutsideCOOH",
+        "standardized_coefficient": -0.01509921802503722,
+        "absolute_standardized_coefficient": 0.01509921802503722,
+        "original_scale_coefficient": -0.008909385905412315,
+        "direction": "negative",
+        "absolute_contribution_rank": 45
+      },
+      {
+        "feature": "NumRotatableBonds",
+        "standardized_coefficient": 0.010663183806708127,
+        "absolute_standardized_coefficient": 0.010663183806708127,
+        "original_scale_coefficient": 0.009469412605872314,
+        "direction": "positive",
+        "absolute_contribution_rank": 46
+      },
+      {
+        "feature": "NumHAcceptors",
+        "standardized_coefficient": -0.010044226131584637,
+        "absolute_standardized_coefficient": 0.010044226131584637,
+        "original_scale_coefficient": -0.008866814746244992,
+        "direction": "negative",
+        "absolute_contribution_rank": 47
+      },
+      {
+        "feature": "cooh_buried_volume_percent",
+        "standardized_coefficient": 0.008893544489756646,
+        "absolute_standardized_coefficient": 0.008893544489756646,
+        "original_scale_coefficient": 0.003673267186977827,
+        "direction": "positive",
+        "absolute_contribution_rank": 48
+      },
+      {
+        "feature": "wiberg_aryl_cooh",
+        "standardized_coefficient": 0.008864637642672495,
+        "absolute_standardized_coefficient": 0.008864637642672495,
+        "original_scale_coefficient": 0.3222536026571552,
+        "direction": "positive",
+        "absolute_contribution_rank": 49
+      },
+      {
+        "feature": "BertzCT",
+        "standardized_coefficient": -0.00801385319545126,
+        "absolute_standardized_coefficient": 0.00801385319545126,
+        "original_scale_coefficient": -7.789076219925976e-05,
+        "direction": "negative",
+        "absolute_contribution_rank": 50
+      },
+      {
+        "feature": "MetaSubstituentCount",
+        "standardized_coefficient": -0.007822123097979292,
+        "absolute_standardized_coefficient": 0.007822123097979292,
+        "original_scale_coefficient": -0.01097225189812901,
+        "direction": "negative",
+        "absolute_contribution_rank": 51
+      },
+      {
+        "feature": "GasteigerCharge_ParaC",
+        "standardized_coefficient": -0.005797444402642177,
+        "absolute_standardized_coefficient": 0.005797444402642177,
+        "original_scale_coefficient": -0.07127744566350436,
+        "direction": "negative",
+        "absolute_contribution_rank": 52
+      },
+      {
+        "feature": "GasteigerCharge_MetaCMean",
+        "standardized_coefficient": 0.005399965301903154,
+        "absolute_standardized_coefficient": 0.005399965301903154,
+        "original_scale_coefficient": 0.07524855289339413,
+        "direction": "positive",
+        "absolute_contribution_rank": 53
+      },
+      {
+        "feature": "cooh_local_sasa_angstrom2",
+        "standardized_coefficient": 0.005171111570154347,
+        "absolute_standardized_coefficient": 0.005171111570154347,
+        "original_scale_coefficient": 0.0009146085978231105,
+        "direction": "positive",
+        "absolute_contribution_rank": 54
+      },
+      {
+        "feature": "molecular_volume_angstrom3",
+        "standardized_coefficient": -0.004841948237653316,
+        "absolute_standardized_coefficient": 0.004841948237653316,
+        "original_scale_coefficient": -0.0001425990643421977,
+        "direction": "negative",
+        "absolute_contribution_rank": 55
+      },
+      {
+        "feature": "npa_para_c",
+        "standardized_coefficient": -0.0034886598816572714,
+        "absolute_standardized_coefficient": 0.0034886598816572714,
+        "original_scale_coefficient": -0.01763879752288014,
+        "direction": "negative",
+        "absolute_contribution_rank": 56
+      },
+      {
+        "feature": "HeavyAtomCount",
+        "standardized_coefficient": -0.002088519947821145,
+        "absolute_standardized_coefficient": 0.002088519947821145,
+        "original_scale_coefficient": -0.0009032690508478355,
+        "direction": "negative",
+        "absolute_contribution_rank": 57
+      },
+      {
+        "feature": "MolMR",
+        "standardized_coefficient": 0.0019648647520607012,
+        "absolute_standardized_coefficient": 0.0019648647520607012,
+        "original_scale_coefficient": 0.00024840997623099475,
+        "direction": "positive",
+        "absolute_contribution_rank": 58
+      },
+      {
+        "feature": "isotropic_polarizability_au",
+        "standardized_coefficient": 0.0017065532106451534,
+        "absolute_standardized_coefficient": 0.0017065532106451534,
+        "original_scale_coefficient": 4.825404219699731e-05,
+        "direction": "positive",
+        "absolute_contribution_rank": 59
+      },
+      {
+        "feature": "mpi_hartree_per_e",
+        "standardized_coefficient": 0.0005315718059811344,
+        "absolute_standardized_coefficient": 0.0005315718059811344,
+        "original_scale_coefficient": 0.10810500206670914,
+        "direction": "positive",
+        "absolute_contribution_rank": 60
+      }
+    ]
+  }
+}
