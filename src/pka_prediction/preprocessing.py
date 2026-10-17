@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 REQUIRED_COLUMNS = ("name", "smiles")
+PKA_UPPER_BOUND = 6.0
 
 # アルカリ金属、アルカリ土類金属、遷移金属、ランタノイド、
 # アクチノイド、および代表的なポスト遷移金属。
@@ -30,9 +31,13 @@ METAL_ATOMIC_NUMBERS = frozenset(
 EXCLUSION_REASONS = (
     "missing_smiles",
     "invalid_smiles",
+    "contains_sulfonic_acid",
+    "contains_phosphorus_oh",
+    "not_benzoic_acid_derivative",
     "contains_metal",
     "ionic_smiles",
     "3d_generation_failed",
+    "pka_value_at_or_above_6",
     "missing_values",
 )
 
@@ -118,6 +123,21 @@ def _benzoic_acid_derivatives(mol: Any, Chem: Any) -> bool:
     return mol.HasSubstructMatch(benzoic_acid)
 
 
+def _excluded_acid_group_reason(mol: Any, Chem: Any) -> str | None:
+    """スルホン酸基（-SO3H）またはリン原子に結合したP-OHを検出する。"""
+    excluded_groups = (
+        (
+            "contains_sulfonic_acid",
+            Chem.MolFromSmarts("[SX4](=[OX1])(=[OX1])[OX2H1]"),
+        ),
+        ("contains_phosphorus_oh", Chem.MolFromSmarts("[P]-[OX2H1]")),
+    )
+    for reason, pattern in excluded_groups:
+        if pattern is not None and mol.HasSubstructMatch(pattern):
+            return reason
+    return None
+
+
 def _contains_metal(mol: Any) -> bool:
     return any(atom.GetAtomicNum() in METAL_ATOMIC_NUMBERS for atom in mol.GetAtoms())
 
@@ -176,6 +196,9 @@ def _molecule_exclusion_reason(
         return "invalid_smiles"
     if any(atom.GetAtomicNum() == 0 for atom in mol.GetAtoms()):
         return "invalid_smiles"
+    excluded_acid_group_reason = _excluded_acid_group_reason(mol, Chem)
+    if excluded_acid_group_reason is not None:
+        return excluded_acid_group_reason
     if not _benzoic_acid_derivatives(mol, Chem):
         return "not_benzoic_acid_derivative"
     if _contains_metal(mol):
@@ -246,6 +269,10 @@ def preprocess_dataframe(
     counts: Counter[str] = Counter({reason: 0 for reason in EXCLUSION_REASONS})
     kept_indices: list[Any] = []
     for index, smiles_value in frame[actual_smiles_column].items():
+        pka_value = frame.at[index, "pka_value"]
+        if not pd.isna(pka_value) and pka_value >= PKA_UPPER_BOUND:
+            counts["pka_value_at_or_above_6"] += 1
+            continue
         reason = _molecule_exclusion_reason(
             smiles_value,
             pd=pd,
